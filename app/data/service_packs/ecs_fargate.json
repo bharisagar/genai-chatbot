@@ -1,0 +1,223 @@
+{
+  "id": "ecs-fargate",
+  "name": "ECS on Fargate",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for Amazon ECS services running on AWS Fargate.",
+  "keywords": [
+    "ecs",
+    "fargate",
+    "container",
+    "containers",
+    "task",
+    "cluster",
+    "service",
+    "alb",
+    "load balancer",
+    "docker"
+  ],
+  "aws_services": [
+    "Amazon ECS",
+    "AWS Fargate",
+    "Elastic Load Balancing",
+    "Amazon CloudWatch",
+    "CloudWatch Application Signals",
+    "AWS X-Ray",
+    "AWS Distro for OpenTelemetry",
+    "AWS CloudTrail",
+    "AWS Config",
+    "AWS Security Hub",
+    "Amazon GuardDuty",
+    "Amazon ECR"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Complete visibility into service performance, runtime health, request flow, and customer-facing impact."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Trace requests across ALB, ECS tasks, and downstream services so teams can explain failures and latency."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure availability, latency, error rate, and deployment success against service-level objectives."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Validate least privilege, image hygiene, network exposure, secrets handling, and auditability."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously test health, deployment quality, runtime posture, and operational readiness."
+    }
+  ],
+  "dashboard": {
+    "name": "ECS Fargate Production Health",
+    "sections": [
+      {
+        "name": "Service Overview",
+        "purpose": "Cluster, service, desired task count, running task count, deployment state, and recent events."
+      },
+      {
+        "name": "Compute Saturation",
+        "purpose": "CPU utilization, memory utilization, task restarts, and scaling pressure."
+      },
+      {
+        "name": "Traffic and Availability",
+        "purpose": "ALB request count, target response time, HTTP 4xx/5xx, target health, and availability indicators."
+      },
+      {
+        "name": "Application Errors",
+        "purpose": "CloudWatch log error trends, exception signatures, and failed dependency calls."
+      },
+      {
+        "name": "Traces and Service Map",
+        "purpose": "OpenTelemetry or X-Ray traces showing request path, downstream latency, and fault locations."
+      },
+      {
+        "name": "Security Posture",
+        "purpose": "Security Hub findings, GuardDuty findings, ECR scan status, IAM drift, and public exposure checks."
+      },
+      {
+        "name": "Cost and Efficiency",
+        "purpose": "Fargate CPU and memory allocation, scaling utilization, idle capacity, and rightsizing signals."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "CPUUtilization",
+      "namespace": "AWS/ECS",
+      "why": "Detect saturation, under-provisioning, and scaling triggers."
+    },
+    {
+      "name": "MemoryUtilization",
+      "namespace": "AWS/ECS",
+      "why": "Detect memory pressure and out-of-memory risk."
+    },
+    {
+      "name": "RunningTaskCount",
+      "namespace": "ECS/ContainerInsights",
+      "why": "Confirm the service is actually running the desired number of tasks."
+    },
+    {
+      "name": "TargetResponseTime",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Measure user-facing latency through the load balancer."
+    },
+    {
+      "name": "HTTPCode_Target_5XX_Count",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Detect application-side failures."
+    },
+    {
+      "name": "UnHealthyHostCount",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Detect failed or unreachable ECS tasks behind the target group."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "Application errors by message",
+      "intent": "Find the most frequent error patterns in ECS application logs.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(error|exception|failed)/ | stats count() by @message | sort count desc | limit 20"
+    },
+    {
+      "name": "Slow request signatures",
+      "intent": "Find slow operations when logs include duration fields.",
+      "query": "fields @timestamp, @message, durationMs | filter durationMs > 1000 | sort durationMs desc | limit 50"
+    },
+    {
+      "name": "Task startup failures",
+      "intent": "Find container startup and dependency initialization failures.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(startup|init|timeout|connection refused|permission denied)/ | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "ECSHighCPU",
+      "condition": "CPUUtilization above 80 percent for 10 minutes",
+      "action": "Notify service owner and evaluate scale-out policy."
+    },
+    {
+      "name": "ECSHighMemory",
+      "condition": "MemoryUtilization above 80 percent for 10 minutes",
+      "action": "Notify service owner and check memory leaks or task sizing."
+    },
+    {
+      "name": "ALBTarget5xxSpike",
+      "condition": "Target 5xx count greater than threshold for 5 minutes",
+      "action": "Start incident triage with logs and traces."
+    },
+    {
+      "name": "ALBUnhealthyTargets",
+      "condition": "One or more unhealthy targets for 5 minutes",
+      "action": "Check ECS task health checks, container port, and deployment state."
+    },
+    {
+      "name": "ECSRunningTaskMismatch",
+      "condition": "Running task count is below desired task count",
+      "action": "Investigate placement, image pull, task role, networking, or capacity issues."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Task role least privilege",
+      "evidence": "IAM policy attached to the task role grants only required service actions."
+    },
+    {
+      "name": "Private task networking",
+      "evidence": "ECS tasks run in private subnets where possible, with ingress only from the ALB security group."
+    },
+    {
+      "name": "Container image scanning",
+      "evidence": "ECR scan findings are reviewed and critical vulnerabilities block production deployment."
+    },
+    {
+      "name": "Centralized audit trail",
+      "evidence": "CloudTrail captures ECS, IAM, ECR, and deployment API activity."
+    },
+    {
+      "name": "Runtime threat detection",
+      "evidence": "GuardDuty findings are enabled and routed to Security Hub."
+    },
+    {
+      "name": "Configuration compliance",
+      "evidence": "AWS Config evaluates security groups, encryption, logging, and public exposure controls."
+    }
+  ],
+  "adoption_plan": [
+    "Deploy the chatbot and ECS service-pack API to a non-production AWS account.",
+    "Enable ECS Container Insights on the cluster.",
+    "Instrument the application with OpenTelemetry or X-Ray tracing.",
+    "Create the ECS Fargate CloudWatch dashboard from the approved service-pack template.",
+    "Create CPU, memory, ALB 5xx, target health, and task mismatch alarms.",
+    "Connect alarms to the organization's incident channel or ticketing flow.",
+    "Enable Security Hub, AWS Config, GuardDuty, CloudTrail, and ECR image scanning evidence checks.",
+    "Review the dashboard with application, platform, and security owners.",
+    "Promote the pack as the default ECS monitoring standard for new services."
+  ],
+  "references": [
+    {
+      "label": "Amazon ECS CloudWatch metrics",
+      "url": "https://docs.aws.amazon.com/AmazonECS/latest/developerguide/available-metrics.html"
+    },
+    {
+      "label": "CloudWatch Application Signals",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Application-Monitoring-Sections.html"
+    },
+    {
+      "label": "Amazon ECS Container Insights",
+      "url": "https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-setup-ECS.html"
+    },
+    {
+      "label": "AWS X-Ray",
+      "url": "https://docs.aws.amazon.com/xray/latest/devguide/aws-xray.html"
+    },
+    {
+      "label": "AWS Security Hub",
+      "url": "https://docs.aws.amazon.com/securityhub/latest/userguide/what-is-securityhub.html"
+    }
+  ]
+}
+

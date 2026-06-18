@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AWS AIOps Lens Advisor</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="side-panel">
+        <div class="brand-row">
+          <div class="brand-mark">AL</div>
+          <div>
+            <h1>AWS AIOps Lens</h1>
+            <p>Service-pack advisor</p>
+          </div>
+        </div>
+
+        <section class="pack-status">
+          <p class="label">Active pack</p>
+          <h2>ECS on Fargate</h2>
+          <p>Monitoring, observability, security, and adoption guidance for container workloads.</p>
+        </section>
+
+        <section class="quick-prompts">
+          <p class="label">Ask</p>
+          <button type="button" data-prompt="How do we monitor ECS Fargate in production?">Monitoring plan</button>
+          <button type="button" data-prompt="Give me the ECS Fargate CloudWatch dashboard sections and alarms.">Dashboard and alarms</button>
+          <button type="button" data-prompt="What security controls and evidence do we need for ECS Fargate?">Security evidence</button>
+          <button type="button" data-prompt="Give me the organization adoption plan for ECS Fargate observability.">Adoption plan</button>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <p class="label">Demo chatbot</p>
+            <h2>Ask for an AWS service lens and get the approved implementation pack.</h2>
+          </div>
+          <div class="status-pill" id="healthStatus">Checking API</div>
+        </header>
+
+        <section class="lens-map" aria-label="AIOps lens map">
+          <div>
+            <span>Observe</span>
+            <strong>Metrics, logs, traces</strong>
+          </div>
+          <div>
+            <span>Explain</span>
+            <strong>Service map, events</strong>
+          </div>
+          <div>
+            <span>Secure</span>
+            <strong>Config, findings, IAM</strong>
+          </div>
+          <div>
+            <span>Validate</span>
+            <strong>SLOs, alarms, evidence</strong>
+          </div>
+        </section>
+
+        <section class="chat-panel">
+          <div class="messages" id="messages">
+            <div class="message assistant">
+              <p>Ready. Ask about ECS/Fargate monitoring, dashboard design, alarms, or security evidence.</p>
+            </div>
+          </div>
+
+          <form class="composer" id="chatForm">
+            <textarea id="messageInput" rows="2" placeholder="Example: How do we monitor ECS Fargate end to end?"></textarea>
+            <button type="submit">Send</button>
+          </form>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
+

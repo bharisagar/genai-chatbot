@@ -1,9 +1,11 @@
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from app.bedrock_client import BedrockAdvisor
 from app.models import ChatRequest, ChatResponse, Reference, RuntimeStatus, ServicePackSummary
+from app.telemetry import estimate_tokens
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "service_packs"
@@ -50,16 +52,21 @@ class AdvisorEngine:
         )
 
     def answer(self, request: ChatRequest) -> ChatResponse:
-        service_id = request.service_id or self._classify_service(request.message)
+        service_id, service_reason = self._resolve_service(request)
         pack = self.packs.get(service_id) or self.packs["ecs-fargate"]
-        intent = self._classify_intent(request.message)
+        intent, intent_reason = self._classify_intent_with_reason(request.message)
 
         deterministic_answer = self._build_answer(request.message, pack, intent)
-        bedrock_answer, bedrock_error = self._maybe_generate_with_bedrock(
+        bedrock_answer, bedrock_error, input_tokens, output_tokens = self._maybe_generate_with_bedrock(
             request, pack, intent, deterministic_answer
         )
         answer = bedrock_answer or deterministic_answer
         response_source = "bedrock_grounded" if bedrock_answer else "service_pack"
+        input_tokens = input_tokens or estimate_tokens(request.message)
+        output_tokens = output_tokens or estimate_tokens(answer)
+        total_tokens = input_tokens + output_tokens
+        estimated_cost_usd = self._estimate_cost_usd(input_tokens, output_tokens, response_source)
+        fallback_used = response_source == "service_pack" and bool(bedrock_error)
 
         return ChatResponse(
             answer=answer,
@@ -69,25 +76,67 @@ class AdvisorEngine:
             response_source=response_source,
             bedrock_error=bedrock_error,
             confidence=0.92 if pack["id"] == service_id else 0.72,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            estimated_cost_usd=estimated_cost_usd,
+            explainability={
+                "selected_service_reason": service_reason,
+                "selected_intent_reason": intent_reason,
+                "action_taken": (
+                    f"Returned {intent.replace('_', ' ')} guidance from the "
+                    f"{pack['name']} service pack."
+                ),
+                "fallback_used": fallback_used,
+                "bedrock_error": bedrock_error,
+                "approved_context": {
+                    "dashboard_sections": [section["name"] for section in pack["dashboard"]["sections"]],
+                    "alarm_count": len(pack["alarms"]),
+                    "reference_count": len(pack["references"]),
+                },
+            },
             actions=self._actions_for_intent(pack, intent),
             dashboard_sections=[section["name"] for section in pack["dashboard"]["sections"]],
             alarms=[alarm["name"] for alarm in pack["alarms"]],
             references=[Reference(**reference) for reference in pack["references"]],
         )
 
+    def _resolve_service(self, request: ChatRequest) -> tuple[str, str]:
+        if request.service_id:
+            if request.service_id in self.packs:
+                return request.service_id, f"User selected the {request.service_id} service pack."
+            return (
+                "ecs-fargate",
+                f"User selected unknown service pack '{request.service_id}', so the ECS Fargate default was used.",
+            )
+        return self._classify_service_with_reason(request.message)
+
     def _classify_service(self, message: str) -> str:
+        service_id, _reason = self._classify_service_with_reason(message)
+        return service_id
+
+    def _classify_service_with_reason(self, message: str) -> tuple[str, str]:
         normalized = message.lower()
         best_id = "ecs-fargate"
         best_score = 0
+        best_matches: list[str] = []
         for pack_id, pack in self.packs.items():
             keywords = pack.get("keywords", [])
-            score = sum(len(keyword) for keyword in keywords if keyword.lower() in normalized)
+            matches = [keyword for keyword in keywords if keyword.lower() in normalized]
+            score = sum(len(keyword) for keyword in matches)
             if score > best_score:
                 best_score = score
                 best_id = pack_id
-        return best_id
+                best_matches = matches
+        if best_matches:
+            return best_id, f"Matched service keywords: {', '.join(best_matches[:5])}."
+        return best_id, "No specific service keyword matched, so the ECS Fargate default was used."
 
     def _classify_intent(self, message: str) -> str:
+        intent, _reason = self._classify_intent_with_reason(message)
+        return intent
+
+    def _classify_intent_with_reason(self, message: str) -> tuple[str, str]:
         normalized = message.lower()
         intent_keywords = {
             "dashboard_alarms": [
@@ -150,15 +199,16 @@ class AdvisorEngine:
         }
 
         for intent, keywords in intent_keywords.items():
-            if any(keyword in normalized for keyword in keywords):
-                return intent
-        return "monitoring_overview"
+            matches = [keyword for keyword in keywords if keyword in normalized]
+            if matches:
+                return intent, f"Matched intent keywords: {', '.join(matches[:5])}."
+        return "monitoring_overview", "No specific intent keyword matched, so monitoring overview was used."
 
     def _maybe_generate_with_bedrock(
         self, request: ChatRequest, pack: dict[str, Any], intent: str, deterministic_answer: str
-    ) -> tuple[str | None, str | None]:
+    ) -> tuple[str | None, str | None, int, int]:
         if not request.use_bedrock:
-            return None, None
+            return None, None, 0, 0
 
         system_prompt = (
             "You are an AWS production observability architect. "
@@ -183,7 +233,18 @@ class AdvisorEngine:
             "approved_draft_answer": deterministic_answer,
         }
         result = self.bedrock.generate(system_prompt, request.message, grounded_context)
-        return result.text, result.error
+        return result.text, result.error, result.input_tokens, result.output_tokens
+
+    def _estimate_cost_usd(self, input_tokens: int, output_tokens: int, response_source: str) -> float:
+        if response_source != "bedrock_grounded":
+            return 0.0
+        input_price_per_1k = float(os.getenv("BEDROCK_INPUT_PRICE_PER_1K", "0"))
+        output_price_per_1k = float(os.getenv("BEDROCK_OUTPUT_PRICE_PER_1K", "0"))
+        return round(
+            ((input_tokens / 1000) * input_price_per_1k)
+            + ((output_tokens / 1000) * output_price_per_1k),
+            8,
+        )
 
     def _build_answer(self, message: str, pack: dict[str, Any], intent: str) -> str:
         builders = {

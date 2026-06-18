@@ -117,3 +117,15 @@ variable "enable_bedrock" {
   type        = bool
   default     = false
 }
+
+variable "bedrock_input_price_per_1k" {
+  description = "Optional Bedrock input-token price per 1,000 tokens for estimated request-cost metrics. Keep 0 unless the chosen model price has been confirmed."
+  type        = number
+  default     = 0
+}
+
+variable "bedrock_output_price_per_1k" {
+  description = "Optional Bedrock output-token price per 1,000 tokens for estimated request-cost metrics. Keep 0 unless the chosen model price has been confirmed."
+  type        = number
+  default     = 0
+}

@@ -1,6 +1,6 @@
 # AWS AIOps Lens Advisor
 
-A small production-shaped chatbot demo for adopting AWS monitoring, observability, and security patterns. The first implemented service pack is **ECS on Fargate**.
+A small production-shaped chatbot demo for adopting AWS monitoring, observability, and security patterns across approved AWS service packs.
 
 The app is intentionally simple on the surface:
 
@@ -9,16 +9,42 @@ The app is intentionally simple on the surface:
 - Optional Amazon Bedrock integration for natural-language polish.
 - Docker packaging for ECS/Fargate.
 - Terraform starter infrastructure with ALB, ECS service, CloudWatch logs, dashboard, and alarms.
+- CloudWatch Embedded Metric Format telemetry for chatbot observability, explainability, token usage, and estimated cost.
 
 ## Architecture
 
 ```text
 User -> Chat UI -> FastAPI -> Service Pack Catalog
                          \-> Optional Amazon Bedrock
+                         \-> EMF telemetry + explainability events
                          \-> CloudWatch-ready dashboard/alarm recommendations
 ```
 
 The core production principle is that the LLM advises from curated service packs. It should not freely invent dashboards, alarms, or security controls.
+
+## Chatbot Observability
+
+Every chat request emits one structured CloudWatch Embedded Metric Format event to stdout. On ECS/Fargate, the awslogs driver sends that event to CloudWatch Logs and CloudWatch extracts metrics automatically.
+
+Captured signals:
+
+- Request volume, success count, and error count
+- End-to-end latency
+- Selected AWS service pack and intent
+- Response source: service pack or Bedrock grounded
+- Confidence score, fallback count, and low-confidence count
+- Input tokens, output tokens, total tokens, and estimated request cost
+- Explainability reasons for service selection and intent selection
+- Request id and message hash for evidence without storing raw prompts
+
+The app also exposes an in-memory demo view:
+
+```text
+GET /api/observability/summary
+GET /api/observability/recent
+```
+
+Terraform adds CloudWatch dashboard widgets for chatbot request volume, errors, latency, token usage, estimated cost, requests by service, requests by intent, and explainability evidence. MCP can be added later as a natural-language query layer over CloudWatch Logs Insights, CloudWatch Metrics, and S3/Athena evidence; it should not replace the telemetry pipeline.
 
 ## Implemented Service Packs
 
@@ -94,6 +120,7 @@ The next stage is deployable through Terraform and a PowerShell helper. Terrafor
 - Optional NAT gateway for private task egress
 - ECS cluster, task definition, service, ALB, target group
 - CloudWatch log group, alarms, and dashboard
+- Chatbot observability metrics, explainability log views, token/cost widgets, and governance alarms
 
 Run the deployment helper after Docker Desktop is running:
 
@@ -133,6 +160,8 @@ By default, the ALB is placed in public subnets and ECS/Fargate tasks are placed
 - `GET /api/runtime`
 - `GET /api/service-packs`
 - `GET /api/service-packs/ecs-fargate`
+- `GET /api/observability/summary`
+- `GET /api/observability/recent`
 - `POST /api/chat`
 
 Example:

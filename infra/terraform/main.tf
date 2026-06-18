@@ -236,6 +236,10 @@ resource "aws_ecs_task_definition" "app" {
       ]
       environment = [
         {
+          name  = "APPLICATION_NAME"
+          value = var.name
+        },
+        {
           name  = "AWS_REGION"
           value = var.aws_region
         },
@@ -246,6 +250,14 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "BEDROCK_MODEL_ID"
           value = var.bedrock_model_id
+        },
+        {
+          name  = "BEDROCK_INPUT_PRICE_PER_1K"
+          value = tostring(var.bedrock_input_price_per_1k)
+        },
+        {
+          name  = "BEDROCK_OUTPUT_PRICE_PER_1K"
+          value = tostring(var.bedrock_output_price_per_1k)
         }
       ]
       logConfiguration = {
@@ -392,6 +404,82 @@ resource "aws_cloudwatch_metric_alarm" "ecs_running_task_mismatch" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "chatbot_errors" {
+  alarm_name          = "${var.name}-chatbot-errors"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ErrorCount"
+  namespace           = "AIOpsLens/Chatbot"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "One or more chatbot requests failed in the last evaluation period."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Application = var.name
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "chatbot_high_latency" {
+  alarm_name          = "${var.name}-chatbot-high-latency"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "LatencyMs"
+  namespace           = "AIOpsLens/Chatbot"
+  period              = 300
+  statistic           = "Average"
+  threshold           = 3000
+  alarm_description   = "Average chatbot request latency is above 3 seconds."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Application = var.name
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "chatbot_low_confidence" {
+  alarm_name          = "${var.name}-chatbot-low-confidence"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "LowConfidenceCount"
+  namespace           = "AIOpsLens/Chatbot"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 5
+  alarm_description   = "More than five low-confidence chatbot responses were produced in one period."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Application = var.name
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "chatbot_cost_spike" {
+  alarm_name          = "${var.name}-chatbot-cost-spike"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "EstimatedCostUsd"
+  namespace           = "AIOpsLens/Chatbot"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  alarm_description   = "Estimated Bedrock chatbot cost exceeded 1 USD in one period."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Application = var.name
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_cloudwatch_dashboard" "ecs" {
   dashboard_name = "${var.name}-ecs-fargate"
 
@@ -485,6 +573,125 @@ resource "aws_cloudwatch_dashboard" "ecs" {
             [".", "DesiredTaskCount", ".", ".", ".", "."]
           ]
           stat = "Average"
+        }
+      },
+      {
+        type   = "text"
+        x      = 0
+        y      = 20
+        width  = 24
+        height = 2
+        properties = {
+          markdown = "# Chatbot Observability, Explainability, Token Usage, and Cost\nMetrics are emitted by the FastAPI application using CloudWatch Embedded Metric Format."
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 22
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Request Volume, Success, and Errors"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AIOpsLens/Chatbot", "RequestCount", "Application", var.name, { stat = "Sum" }],
+            [".", "SuccessCount", ".", ".", { stat = "Sum" }],
+            [".", "ErrorCount", ".", ".", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 22
+        width  = 12
+        height = 6
+        properties = {
+          title  = "End-to-End Latency"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AIOpsLens/Chatbot", "LatencyMs", "Application", var.name, { stat = "Average", label = "Average latency" }],
+            [".", ".", ".", ".", { stat = "p95", label = "p95 latency" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 28
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Token Usage"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AIOpsLens/Chatbot", "InputTokens", "Application", var.name, { stat = "Sum" }],
+            [".", "OutputTokens", ".", ".", { stat = "Sum" }],
+            [".", "TotalTokens", ".", ".", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 28
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Estimated Cost and Governance Signals"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AIOpsLens/Chatbot", "EstimatedCostUsd", "Application", var.name, { stat = "Sum" }],
+            [".", "FallbackCount", ".", ".", { stat = "Sum" }],
+            [".", "LowConfidenceCount", ".", ".", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 34
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Requests by AWS Service"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            [{ expression = "SEARCH('{AIOpsLens/Chatbot,Application,ServiceId} Application=\"${var.name}\" MetricName=\"RequestCount\"', 'Sum', 300)", id = "service_requests", label = "Service requests" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 34
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Requests by Intent"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            [{ expression = "SEARCH('{AIOpsLens/Chatbot,Application,Intent} Application=\"${var.name}\" MetricName=\"RequestCount\"', 'Sum', 300)", id = "intent_requests", label = "Intent requests" }]
+          ]
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 40
+        width  = 24
+        height = 6
+        properties = {
+          title  = "Explainability and Decision Evidence"
+          region = var.aws_region
+          query  = "SOURCE '${aws_cloudwatch_log_group.app.name}' | fields @timestamp, RequestId, ServiceId, Intent, ResponseSource, Confidence, LatencyMs, TotalTokens, EstimatedCostUsd, Explainability.selected_service_reason, Explainability.selected_intent_reason | filter EventType = 'chatbot_observability' | sort @timestamp desc | limit 50"
         }
       }
     ]

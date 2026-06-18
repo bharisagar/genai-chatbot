@@ -117,3 +117,20 @@ def test_classifier_routes_common_service_questions() -> None:
         response = advisor.answer(ChatRequest(message=question, use_bedrock=False))
 
         assert response.service_id == expected_service_id
+
+
+def test_response_includes_observability_and_explainability_fields() -> None:
+    advisor = AdvisorEngine()
+
+    response = advisor.answer(
+        ChatRequest(message="Show me S3 bucket security evidence", use_bedrock=False)
+    )
+
+    assert response.service_id == "s3"
+    assert response.input_tokens > 0
+    assert response.output_tokens > 0
+    assert response.total_tokens == response.input_tokens + response.output_tokens
+    assert response.estimated_cost_usd == 0.0
+    assert "selected_service_reason" in response.explainability
+    assert "selected_intent_reason" in response.explainability
+    assert response.explainability["fallback_used"] is False

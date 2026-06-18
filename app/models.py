@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -34,8 +36,15 @@ class ChatResponse(BaseModel):
     service_name: str
     intent: str
     response_source: str
+    request_id: str | None = None
+    latency_ms: float | None = None
     bedrock_error: str | None = None
     confidence: float
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    estimated_cost_usd: float = 0.0
+    explainability: dict[str, Any] = Field(default_factory=dict)
     actions: list[str]
     dashboard_sections: list[str]
     alarms: list[str]

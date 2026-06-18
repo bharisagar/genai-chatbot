@@ -1,4 +1,6 @@
 from pathlib import Path
+from time import perf_counter
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.advisor import AdvisorEngine
 from app.models import ChatRequest, ChatResponse, RuntimeStatus, ServicePackSummary
+from app.telemetry import telemetry_store
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -59,7 +62,30 @@ def get_service_pack(service_id: str) -> dict:
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(request: ChatRequest) -> ChatResponse:
-    return advisor.answer(request)
+    request_id = str(uuid4())
+    start = perf_counter()
+    try:
+        response = advisor.answer(request)
+    except Exception as error:
+        latency_ms = (perf_counter() - start) * 1000
+        telemetry_store.record_error(request_id, request, latency_ms, error)
+        raise
+
+    latency_ms = (perf_counter() - start) * 1000
+    response.request_id = request_id
+    response.latency_ms = round(latency_ms, 2)
+    telemetry_store.record_success(request_id, request, response, latency_ms)
+    return response
+
+
+@app.get("/api/observability/summary")
+def observability_summary() -> dict:
+    return telemetry_store.summary()
+
+
+@app.get("/api/observability/recent")
+def recent_observability_events(limit: int = 50) -> list[dict]:
+    return telemetry_store.recent(limit)
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

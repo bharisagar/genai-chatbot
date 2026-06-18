@@ -3,9 +3,18 @@ from typing import Any
 
 
 class BedrockResult:
-    def __init__(self, text: str | None, error: str | None = None) -> None:
+    def __init__(
+        self,
+        text: str | None,
+        error: str | None = None,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
         self.text = text
         self.error = error
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+        self.total_tokens = input_tokens + output_tokens
 
 
 class BedrockAdvisor:
@@ -57,7 +66,12 @@ class BedrockAdvisor:
                 ],
                 inferenceConfig={"temperature": 0.2, "maxTokens": 1400},
             )
-            return BedrockResult(response["output"]["message"]["content"][0]["text"])
+            usage = response.get("usage", {})
+            return BedrockResult(
+                response["output"]["message"]["content"][0]["text"],
+                input_tokens=int(usage.get("inputTokens", 0)),
+                output_tokens=int(usage.get("outputTokens", 0)),
+            )
         except Exception as error:
             self.last_error = f"{type(error).__name__}: {str(error)}"
             return BedrockResult(None, self.last_error)

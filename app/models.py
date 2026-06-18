@@ -20,11 +20,21 @@ class ServicePackSummary(BaseModel):
     aws_services: list[str]
 
 
+class RuntimeStatus(BaseModel):
+    bedrock_enabled: bool
+    bedrock_model_id: str | None
+    bedrock_region: str
+    mode: str
+    last_bedrock_error: str | None = None
+
+
 class ChatResponse(BaseModel):
     answer: str
     service_id: str
     service_name: str
     intent: str
+    response_source: str
+    bedrock_error: str | None = None
     confidence: float
     actions: list[str]
     dashboard_sections: list[str]

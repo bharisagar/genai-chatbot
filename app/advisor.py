@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any
 
 from app.bedrock_client import BedrockAdvisor
-from app.models import ChatRequest, ChatResponse, Reference, ServicePackSummary
+from app.models import ChatRequest, ChatResponse, Reference, RuntimeStatus, ServicePackSummary
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "service_packs"
@@ -38,20 +38,36 @@ class AdvisorEngine:
     def get_pack(self, service_id: str) -> dict[str, Any] | None:
         return self.packs.get(service_id)
 
+    def runtime_status(self) -> RuntimeStatus:
+        status = self.bedrock.status()
+        bedrock_enabled = bool(status["enabled"])
+        return RuntimeStatus(
+            bedrock_enabled=bedrock_enabled,
+            bedrock_model_id=status["model_id"],
+            bedrock_region=str(status["region"]),
+            mode="bedrock_grounded" if bedrock_enabled else "service_pack",
+            last_bedrock_error=status["last_error"],
+        )
+
     def answer(self, request: ChatRequest) -> ChatResponse:
         service_id = request.service_id or self._classify_service(request.message)
         pack = self.packs.get(service_id) or self.packs["ecs-fargate"]
         intent = self._classify_intent(request.message)
 
         deterministic_answer = self._build_answer(request.message, pack, intent)
-        bedrock_answer = self._maybe_generate_with_bedrock(request, pack, intent)
+        bedrock_answer, bedrock_error = self._maybe_generate_with_bedrock(
+            request, pack, intent, deterministic_answer
+        )
         answer = bedrock_answer or deterministic_answer
+        response_source = "bedrock_grounded" if bedrock_answer else "service_pack"
 
         return ChatResponse(
             answer=answer,
             service_id=pack["id"],
             service_name=pack["name"],
             intent=intent,
+            response_source=response_source,
+            bedrock_error=bedrock_error,
             confidence=0.92 if pack["id"] == service_id else 0.72,
             actions=self._actions_for_intent(pack, intent),
             dashboard_sections=[section["name"] for section in pack["dashboard"]["sections"]],
@@ -132,18 +148,35 @@ class AdvisorEngine:
         return "monitoring_overview"
 
     def _maybe_generate_with_bedrock(
-        self, request: ChatRequest, pack: dict[str, Any], intent: str
-    ) -> str | None:
+        self, request: ChatRequest, pack: dict[str, Any], intent: str, deterministic_answer: str
+    ) -> tuple[str | None, str | None]:
         if not request.use_bedrock:
-            return None
+            return None, None
 
         system_prompt = (
             "You are an AWS production observability architect. "
             "Answer concisely using only approved service-pack context. "
             f"The detected user intent is {intent}. "
-            "Give a focused answer for that intent and avoid returning every available section."
+            "Give a focused answer for that intent and avoid returning every available section. "
+            "Do not invent AWS services, metric names, alarm names, IAM actions, or dashboard sections. "
+            "If the approved context is insufficient, say what is missing."
         )
-        return self.bedrock.generate(system_prompt, request.message, pack)
+        grounded_context = {
+            "service_id": pack["id"],
+            "service_name": pack["name"],
+            "intent": intent,
+            "approved_services": pack["aws_services"],
+            "trusted_ai_pillars": pack["trusted_ai_pillars"],
+            "metrics": pack["metrics"],
+            "dashboard": pack["dashboard"],
+            "alarms": pack["alarms"],
+            "security_controls": pack["security_controls"],
+            "log_queries": pack["log_queries"],
+            "adoption_plan": pack["adoption_plan"],
+            "approved_draft_answer": deterministic_answer,
+        }
+        result = self.bedrock.generate(system_prompt, request.message, grounded_context)
+        return result.text, result.error
 
     def _build_answer(self, message: str, pack: dict[str, Any], intent: str) -> str:
         builders = {

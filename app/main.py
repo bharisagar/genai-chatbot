@@ -6,7 +6,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.advisor import AdvisorEngine
-from app.models import ChatRequest, ChatResponse, ServicePackSummary
+from app.models import ChatRequest, ChatResponse, RuntimeStatus, ServicePackSummary
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -39,6 +39,11 @@ def health() -> dict[str, str]:
     return {"status": "ok", "service": "aws-aiops-lens-advisor"}
 
 
+@app.get("/api/runtime", response_model=RuntimeStatus)
+def runtime_status() -> RuntimeStatus:
+    return advisor.runtime_status()
+
+
 @app.get("/api/service-packs", response_model=list[ServicePackSummary])
 def list_service_packs() -> list[ServicePackSummary]:
     return advisor.list_packs()
@@ -58,4 +63,3 @@ def chat(request: ChatRequest) -> ChatResponse:
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-

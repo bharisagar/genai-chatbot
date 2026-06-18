@@ -50,12 +50,18 @@ Without AWS credentials the app still works using deterministic service-pack res
 Set these environment variables to enable Bedrock response generation:
 
 ```powershell
-$env:AWS_REGION="us-east-1"
-$env:BEDROCK_MODEL_ID="anthropic.claude-3-5-sonnet-20240620-v1:0"
+$env:AWS_REGION="ap-south-1"
+$env:BEDROCK_MODEL_ID="apac.amazon.nova-lite-v1:0"
 $env:USE_BEDROCK="true"
 ```
 
-The fallback remains the approved local service-pack answer if Bedrock is unavailable.
+The fallback remains the approved local service-pack answer if Bedrock is unavailable. The API exposes runtime mode at:
+
+```text
+GET /api/runtime
+```
+
+For AWS accounts in APAC regions, use an inference profile ID such as `apac.amazon.nova-lite-v1:0` or `apac.anthropic.claude-3-5-sonnet-20240620-v1:0`. Anthropic models require the Anthropic use-case form to be submitted in the AWS account before invocation. If Bedrock quota or model access blocks invocation, the app keeps serving deterministic service-pack answers and reports the fallback source in chat responses.
 
 ## Docker
 
@@ -111,6 +117,7 @@ By default, the ALB is placed in public subnets and ECS/Fargate tasks are placed
 ## API
 
 - `GET /health`
+- `GET /api/runtime`
 - `GET /api/service-packs`
 - `GET /api/service-packs/ecs-fargate`
 - `POST /api/chat`

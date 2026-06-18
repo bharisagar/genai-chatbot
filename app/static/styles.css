@@ -104,6 +104,35 @@ p {
   line-height: 1.5;
 }
 
+.runtime-mode {
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #dbeafe;
+  background: rgba(37, 99, 235, 0.16);
+  font-size: 13px;
+}
+
+.toggle-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e5edf6;
+  font-size: 14px;
+}
+
+.toggle-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--blue);
+}
+
+.toggle-row input:disabled + span {
+  color: #8997aa;
+}
+
 .quick-prompts {
   display: grid;
   gap: 10px;
@@ -215,6 +244,15 @@ p {
   white-space: pre-wrap;
 }
 
+.message-meta {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
 .message.user {
   align-self: flex-end;
   background: #e8f0ff;
@@ -315,4 +353,3 @@ p {
     min-height: 44px;
   }
 }
-

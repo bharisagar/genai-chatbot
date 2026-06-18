@@ -2,10 +2,18 @@ const form = document.querySelector("#chatForm");
 const input = document.querySelector("#messageInput");
 const messages = document.querySelector("#messages");
 const healthStatus = document.querySelector("#healthStatus");
+const runtimeMode = document.querySelector("#runtimeMode");
+const bedrockToggle = document.querySelector("#bedrockToggle");
 
-function appendMessage(role, text) {
+function appendMessage(role, text, meta = "") {
   const node = document.createElement("div");
   node.className = `message ${role}`;
+  if (meta) {
+    const metaNode = document.createElement("div");
+    metaNode.className = "message-meta";
+    metaNode.textContent = meta;
+    node.appendChild(metaNode);
+  }
   const paragraph = document.createElement("p");
   paragraph.textContent = text;
   node.appendChild(paragraph);
@@ -27,6 +35,26 @@ async function checkHealth() {
   }
 }
 
+async function checkRuntime() {
+  try {
+    const response = await fetch("/api/runtime");
+    if (!response.ok) {
+      throw new Error("Runtime check failed");
+    }
+    const runtime = await response.json();
+    const label = runtime.bedrock_enabled ? "Bedrock grounded" : "Service-pack fallback";
+    runtimeMode.textContent = `Mode: ${label}`;
+    bedrockToggle.checked = runtime.bedrock_enabled;
+    bedrockToggle.disabled = !runtime.bedrock_enabled;
+    runtimeMode.title = runtime.bedrock_model_id
+      ? `${runtime.bedrock_model_id} in ${runtime.bedrock_region}`
+      : "Deterministic approved ECS/Fargate service-pack responses";
+  } catch (error) {
+    runtimeMode.textContent = "Mode: unavailable";
+    bedrockToggle.disabled = true;
+  }
+}
+
 async function sendMessage(text) {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -45,7 +73,8 @@ async function sendMessage(text) {
       },
       body: JSON.stringify({
         message: trimmed,
-        service_id: "ecs-fargate"
+        service_id: "ecs-fargate",
+        use_bedrock: bedrockToggle.checked
       })
     });
 
@@ -54,7 +83,8 @@ async function sendMessage(text) {
     }
 
     const payload = await response.json();
-    appendMessage("assistant", payload.answer);
+    const sourceLabel = payload.response_source === "bedrock_grounded" ? "Bedrock grounded" : "Service pack";
+    appendMessage("assistant", payload.answer, `${sourceLabel} | ${payload.intent}`);
   } catch (error) {
     appendMessage("system", "The advisor API did not respond. Check the backend logs and try again.");
   } finally {
@@ -82,4 +112,4 @@ input.addEventListener("keydown", (event) => {
 });
 
 checkHealth();
-
+checkRuntime();

@@ -1,10 +1,49 @@
 locals {
-  container_name = "advisor"
-  app_port       = 8080
+  container_name      = "advisor"
+  app_port            = 8080
+  ecr_repository_name = var.ecr_repository_name != "" ? var.ecr_repository_name : var.name
+  image_uri           = var.image_uri != "" ? var.image_uri : "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
   common_tags = {
     Application = var.name
     ManagedBy   = "terraform"
   }
+}
+
+resource "aws_ecr_repository" "app" {
+  name                 = local.ecr_repository_name
+  image_tag_mutability = "MUTABLE"
+  force_delete         = var.force_delete_ecr
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  encryption_configuration {
+    encryption_type = "AES256"
+  }
+
+  tags = local.common_tags
+}
+
+resource "aws_ecr_lifecycle_policy" "app" {
+  repository = aws_ecr_repository.app.name
+
+  policy = jsonencode({
+    rules = [
+      {
+        rulePriority = 1
+        description  = "Keep the latest 20 images"
+        selection = {
+          tagStatus   = "any"
+          countType   = "imageCountMoreThan"
+          countNumber = 20
+        }
+        action = {
+          type = "expire"
+        }
+      }
+    ]
+  })
 }
 
 resource "aws_cloudwatch_log_group" "app" {
@@ -27,7 +66,7 @@ resource "aws_ecs_cluster" "this" {
 resource "aws_security_group" "alb" {
   name        = "${var.name}-alb"
   description = "Allow HTTP traffic to the advisor ALB"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   ingress {
     description = "HTTP from internet"
@@ -51,7 +90,7 @@ resource "aws_security_group" "alb" {
 resource "aws_security_group" "app" {
   name        = "${var.name}-app"
   description = "Allow ALB traffic to advisor ECS tasks"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   ingress {
     description     = "App port from ALB"
@@ -77,7 +116,7 @@ resource "aws_lb" "this" {
   load_balancer_type = "application"
   internal           = false
   security_groups    = [aws_security_group.alb.id]
-  subnets            = var.public_subnet_ids
+  subnets            = local.public_subnet_ids
   tags               = local.common_tags
 }
 
@@ -86,7 +125,7 @@ resource "aws_lb_target_group" "app" {
   port        = local.app_port
   protocol    = "HTTP"
   target_type = "ip"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   health_check {
     enabled             = true
@@ -187,7 +226,7 @@ resource "aws_ecs_task_definition" "app" {
   container_definitions = jsonencode([
     {
       name      = local.container_name
-      image     = var.image_uri
+      image     = local.image_uri
       essential = true
       portMappings = [
         {
@@ -238,7 +277,7 @@ resource "aws_ecs_service" "app" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = var.private_subnet_ids
+    subnets          = local.private_subnet_ids
     security_groups  = [aws_security_group.app.id]
     assign_public_ip = false
   }

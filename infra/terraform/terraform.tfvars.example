@@ -1,0 +1,17 @@
+name        = "aiops-lens-advisor"
+aws_region  = "ap-south-1"
+aws_profile = "bedrock-governance"
+
+create_vpc         = true
+vpc_cidr           = "10.40.0.0/16"
+az_count           = 2
+enable_nat_gateway = true
+single_nat_gateway = true
+
+image_tag       = "latest"
+desired_count   = 2
+cpu             = 512
+memory          = 1024
+enable_bedrock  = false
+bedrock_model_id = ""
+

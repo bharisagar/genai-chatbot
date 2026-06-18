@@ -66,21 +66,47 @@ docker run --rm -p 8080:8080 aws-aiops-lens-advisor:local
 
 ## ECS/Fargate Deployment
 
-Build and push an image to Amazon ECR, then deploy the Terraform under `infra/terraform`.
+The next stage is deployable through Terraform and a PowerShell helper. Terraform creates:
+
+- ECR repository with scan-on-push
+- Dedicated VPC by default
+- Public ALB subnets
+- Private ECS/Fargate task subnets
+- Optional NAT gateway for private task egress
+- ECS cluster, task definition, service, ALB, target group
+- CloudWatch log group, alarms, and dashboard
+
+Run the deployment helper after Docker Desktop is running:
+
+```powershell
+.\scripts\deploy.ps1 -Profile bedrock-governance -Region ap-south-1 -ImageTag latest -AutoApprove
+```
+
+Manual deployment is also supported.
 
 ```powershell
 cd infra/terraform
 terraform init
+terraform apply -target=aws_ecr_repository.app `
+  -var="name=aiops-lens-advisor" `
+  -var="aws_region=ap-south-1" `
+  -var="aws_profile=bedrock-governance"
+
+$repo = terraform output -raw ecr_repository_url
+aws ecr get-login-password --profile bedrock-governance --region ap-south-1 | docker login --username AWS --password-stdin ($repo -split "/")[0]
+docker build -t aiops-lens-advisor:latest ../..
+docker tag aiops-lens-advisor:latest "${repo}:latest"
+docker push "${repo}:latest"
+
 terraform plan -out=tfplan `
   -var="name=aiops-lens-advisor" `
-  -var="image_uri=<account>.dkr.ecr.<region>.amazonaws.com/aiops-lens-advisor:latest" `
-  -var="vpc_id=vpc-xxxxxxxx" `
-  -var='public_subnet_ids=["subnet-public-a","subnet-public-b"]' `
-  -var='private_subnet_ids=["subnet-private-a","subnet-private-b"]'
+  -var="aws_region=ap-south-1" `
+  -var="aws_profile=bedrock-governance" `
+  -var="image_tag=latest"
 terraform apply tfplan
 ```
 
-The ALB is placed in public subnets. ECS/Fargate tasks are placed in private subnets, so those private subnets need NAT egress or VPC endpoints for ECR, CloudWatch Logs, and any AWS APIs the app uses.
+By default, the ALB is placed in public subnets and ECS/Fargate tasks are placed in private subnets in a Terraform-managed VPC. NAT gateway is enabled by default so tasks can pull from ECR and write to CloudWatch Logs. For lower cost environments with existing networking, set `create_vpc=false` and provide `vpc_id`, `public_subnet_ids`, and `private_subnet_ids`.
 
 ## API
 

@@ -24,9 +24,9 @@ class ChatResponse(BaseModel):
     answer: str
     service_id: str
     service_name: str
+    intent: str
     confidence: float
     actions: list[str]
     dashboard_sections: list[str]
     alarms: list[str]
     references: list[Reference]
-

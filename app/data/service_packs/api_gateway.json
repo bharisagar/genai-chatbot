@@ -1,0 +1,185 @@
+{
+  "id": "api-gateway",
+  "name": "Amazon API Gateway",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for API Gateway REST, HTTP, and WebSocket APIs.",
+  "keywords": ["api gateway", "apigateway", "api", "rest api", "http api", "websocket api", "stage"],
+  "aws_services": [
+    "Amazon API Gateway",
+    "Amazon CloudWatch",
+    "AWS X-Ray",
+    "AWS CloudTrail",
+    "AWS WAF",
+    "AWS Config",
+    "AWS Security Hub",
+    "AWS IAM"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track traffic, client errors, integration errors, latency, throttles, and stage health."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Correlate request IDs, access logs, execution logs, and traces to explain API behavior."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure availability, latency SLOs, error rate, and integration reliability."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Protect APIs with authentication, authorization, throttling, WAF, and audit trails."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate stage settings, logging, authorization, throttling, and deployment changes."
+    }
+  ],
+  "dashboard": {
+    "name": "API Gateway Production Health",
+    "sections": [
+      {
+        "name": "API Traffic",
+        "purpose": "Request count, stage traffic, method distribution, and client adoption patterns."
+      },
+      {
+        "name": "Errors",
+        "purpose": "4xx errors, 5xx errors, integration errors, and authorization failures."
+      },
+      {
+        "name": "Latency",
+        "purpose": "Overall latency, integration latency, p95/p99 trends, and timeout pressure."
+      },
+      {
+        "name": "Throttling and Quotas",
+        "purpose": "Throttle events, usage plan pressure, and rate-limit behavior."
+      },
+      {
+        "name": "Access Logs and Traces",
+        "purpose": "Request IDs, caller identity, route, status, integration status, and X-Ray traces."
+      },
+      {
+        "name": "Security Posture",
+        "purpose": "WAF findings, auth configuration, resource policy posture, and CloudTrail changes."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "Count",
+      "namespace": "AWS/ApiGateway",
+      "why": "Measure request volume and traffic pattern."
+    },
+    {
+      "name": "4XXError",
+      "namespace": "AWS/ApiGateway",
+      "why": "Detect client, authorization, or request-shape issues."
+    },
+    {
+      "name": "5XXError",
+      "namespace": "AWS/ApiGateway",
+      "why": "Detect API or integration failures."
+    },
+    {
+      "name": "Latency",
+      "namespace": "AWS/ApiGateway",
+      "why": "Measure end-to-end API response time."
+    },
+    {
+      "name": "IntegrationLatency",
+      "namespace": "AWS/ApiGateway",
+      "why": "Separate backend latency from gateway overhead."
+    },
+    {
+      "name": "CacheHitCount",
+      "namespace": "AWS/ApiGateway",
+      "why": "Measure cache effectiveness when API caching is enabled."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "API Gateway 5xx requests",
+      "intent": "Find API requests returning 5xx status.",
+      "query": "fields @timestamp, requestId, httpMethod, resourcePath, status, integrationStatus, integrationLatency | filter status >= 500 | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "API Gateway high latency requests",
+      "intent": "Find slow API requests.",
+      "query": "fields @timestamp, requestId, httpMethod, resourcePath, status, responseLatency, integrationLatency | filter responseLatency > 1000 | sort responseLatency desc | limit 50"
+    },
+    {
+      "name": "API Gateway auth failures",
+      "intent": "Find unauthorized or forbidden API requests.",
+      "query": "fields @timestamp, requestId, identity.sourceIp, httpMethod, resourcePath, status | filter status in [401, 403] | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "APIGateway5xxHigh",
+      "condition": "5XXError above threshold for 5 minutes",
+      "action": "Inspect integration health, Lambda/backend logs, and recent deployments."
+    },
+    {
+      "name": "APIGatewayLatencyHigh",
+      "condition": "Latency p95 above SLO threshold",
+      "action": "Separate gateway latency from integration latency and inspect backend traces."
+    },
+    {
+      "name": "APIGateway4xxSpike",
+      "condition": "4XXError spikes above baseline",
+      "action": "Review auth, client changes, request validation, and WAF activity."
+    },
+    {
+      "name": "APIGatewayThrottleSpike",
+      "condition": "Throttle count above threshold",
+      "action": "Review usage plans, client behavior, and rate-limit settings."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Authentication and authorization",
+      "evidence": "API routes require IAM, JWT, Lambda authorizer, or Cognito authorization where needed."
+    },
+    {
+      "name": "WAF protection",
+      "evidence": "Public APIs are associated with WAF for common abuse and injection patterns."
+    },
+    {
+      "name": "Access logging",
+      "evidence": "Stage access logs include request ID, caller, route, status, and latency."
+    },
+    {
+      "name": "Throttling controls",
+      "evidence": "Stage, route, and usage plan throttling are configured for public-facing APIs."
+    },
+    {
+      "name": "CloudTrail auditability",
+      "evidence": "API deployments, stage changes, resource policy changes, and authorizer changes are auditable."
+    }
+  ],
+  "adoption_plan": [
+    "Enable access logs for all production stages.",
+    "Enable X-Ray tracing for critical APIs where supported.",
+    "Create dashboards for traffic, errors, latency, throttles, and security posture.",
+    "Create alarms for 5xx, latency, 4xx spikes, and throttling.",
+    "Review authorization, resource policy, WAF, and throttling controls.",
+    "Document API runbooks with request ID correlation.",
+    "Promote the pack as the default API Gateway monitoring standard."
+  ],
+  "references": [
+    {
+      "label": "API Gateway CloudWatch metrics",
+      "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/api-gateway-metrics-and-dimensions.html"
+    },
+    {
+      "label": "API Gateway access logging",
+      "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-logging.html"
+    },
+    {
+      "label": "API Gateway X-Ray tracing",
+      "url": "https://docs.aws.amazon.com/apigateway/latest/developerguide/apigateway-xray.html"
+    }
+  ]
+}
+

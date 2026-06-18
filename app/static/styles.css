@@ -114,6 +114,21 @@ p {
   font-size: 13px;
 }
 
+.service-select {
+  width: 100%;
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f8fafc;
+  background: #182235;
+}
+
+.service-select:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  border-color: rgba(219, 234, 254, 0.55);
+}
+
 .toggle-row {
   margin-top: 12px;
   display: flex;

@@ -1,0 +1,186 @@
+{
+  "id": "s3",
+  "name": "Amazon S3",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for S3 buckets and data access.",
+  "keywords": ["s3", "bucket", "object", "storage", "data lake", "object storage", "macie"],
+  "aws_services": [
+    "Amazon S3",
+    "Amazon CloudWatch",
+    "AWS CloudTrail",
+    "Amazon S3 Storage Lens",
+    "Amazon Macie",
+    "AWS Config",
+    "AWS Security Hub",
+    "Amazon GuardDuty",
+    "AWS IAM"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track request volume, errors, latency, storage growth, lifecycle transitions, and access patterns."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Use CloudTrail data events, access logs, and Storage Lens to explain who accessed what and when."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure availability, request success, replication health, and lifecycle effectiveness."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Protect sensitive data using block public access, encryption, Macie, and least-privilege policies."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate bucket policy posture, encryption, public access, and data protection controls."
+    }
+  ],
+  "dashboard": {
+    "name": "S3 Data Protection and Access Health",
+    "sections": [
+      {
+        "name": "Bucket Overview",
+        "purpose": "Storage size, object count, growth trend, lifecycle activity, and replication posture."
+      },
+      {
+        "name": "Request Health",
+        "purpose": "All requests, 4xx errors, 5xx errors, first-byte latency, and total request latency."
+      },
+      {
+        "name": "Access and Audit",
+        "purpose": "CloudTrail data events, access log patterns, denied requests, and unusual principals."
+      },
+      {
+        "name": "Data Protection",
+        "purpose": "Encryption, versioning, replication, object lock, and backup readiness."
+      },
+      {
+        "name": "Sensitive Data",
+        "purpose": "Macie findings, sensitive data discovery status, and policy exceptions."
+      },
+      {
+        "name": "Security Posture",
+        "purpose": "Block public access status, bucket policy risk, Config rules, and Security Hub findings."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "BucketSizeBytes",
+      "namespace": "AWS/S3",
+      "why": "Track storage growth and cost trend."
+    },
+    {
+      "name": "NumberOfObjects",
+      "namespace": "AWS/S3",
+      "why": "Track object growth and lifecycle behavior."
+    },
+    {
+      "name": "AllRequests",
+      "namespace": "AWS/S3",
+      "why": "Measure access volume and workload pattern."
+    },
+    {
+      "name": "4xxErrors",
+      "namespace": "AWS/S3",
+      "why": "Detect client authorization or request issues."
+    },
+    {
+      "name": "5xxErrors",
+      "namespace": "AWS/S3",
+      "why": "Detect service-side request failures."
+    },
+    {
+      "name": "FirstByteLatency",
+      "namespace": "AWS/S3",
+      "why": "Track object retrieval responsiveness."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "S3 denied access events",
+      "intent": "Find denied S3 API calls in CloudTrail logs.",
+      "query": "fields @timestamp, eventName, userIdentity.arn, requestParameters.bucketName, errorCode | filter eventSource = \"s3.amazonaws.com\" and ispresent(errorCode) | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "S3 delete operations",
+      "intent": "Find object or bucket delete events.",
+      "query": "fields @timestamp, eventName, userIdentity.arn, requestParameters.bucketName, requestParameters.key | filter eventSource = \"s3.amazonaws.com\" and eventName like /Delete/ | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "S3 public policy changes",
+      "intent": "Find bucket policy or public access block changes.",
+      "query": "fields @timestamp, eventName, userIdentity.arn, requestParameters.bucketName | filter eventSource = \"s3.amazonaws.com\" and eventName like /PutBucketPolicy|PutPublicAccessBlock|DeletePublicAccessBlock/ | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "S3High4xxErrors",
+      "condition": "4xxErrors above baseline for 10 minutes",
+      "action": "Review application credentials, bucket policy, object keys, and access patterns."
+    },
+    {
+      "name": "S3High5xxErrors",
+      "condition": "5xxErrors above baseline for 10 minutes",
+      "action": "Check regional service health, retry behavior, and critical workflows."
+    },
+    {
+      "name": "S3LatencyHigh",
+      "condition": "FirstByteLatency or TotalRequestLatency above threshold",
+      "action": "Review object size, request path, client region, and transfer pattern."
+    },
+    {
+      "name": "S3PublicAccessChange",
+      "condition": "CloudTrail detects public access block or bucket policy changes",
+      "action": "Trigger security review and validate expected change ticket."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Block public access",
+      "evidence": "Account and bucket-level block public access settings are enabled unless formally excepted."
+    },
+    {
+      "name": "Default encryption",
+      "evidence": "Bucket default encryption is enabled with SSE-S3 or SSE-KMS."
+    },
+    {
+      "name": "CloudTrail data events",
+      "evidence": "Critical buckets have object-level data events enabled for read/write audit."
+    },
+    {
+      "name": "Sensitive data discovery",
+      "evidence": "Macie is enabled for sensitive buckets and findings are reviewed."
+    },
+    {
+      "name": "Least-privilege access",
+      "evidence": "Bucket policies and IAM policies are scoped to required principals, actions, and prefixes."
+    }
+  ],
+  "adoption_plan": [
+    "Classify buckets by criticality and data sensitivity.",
+    "Enable request metrics for critical buckets.",
+    "Enable CloudTrail data events for sensitive or regulated buckets.",
+    "Create dashboards for request health, latency, storage growth, and security posture.",
+    "Enable Macie for sensitive data discovery where required.",
+    "Create policy-change alarms and security review workflow.",
+    "Promote the pack as the default S3 data protection standard."
+  ],
+  "references": [
+    {
+      "label": "Amazon S3 CloudWatch metrics",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/cloudwatch-monitoring.html"
+    },
+    {
+      "label": "Amazon S3 Storage Lens",
+      "url": "https://docs.aws.amazon.com/AmazonS3/latest/userguide/storage_lens.html"
+    },
+    {
+      "label": "Amazon Macie",
+      "url": "https://docs.aws.amazon.com/macie/latest/user/what-is-macie.html"
+    }
+  ]
+}
+

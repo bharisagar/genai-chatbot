@@ -81,7 +81,7 @@ class AdvisorEngine:
         best_score = 0
         for pack_id, pack in self.packs.items():
             keywords = pack.get("keywords", [])
-            score = sum(1 for keyword in keywords if keyword.lower() in normalized)
+            score = sum(len(keyword) for keyword in keywords if keyword.lower() in normalized)
             if score > best_score:
                 best_score = score
                 best_id = pack_id
@@ -121,6 +121,10 @@ class AdvisorEngine:
                 "errors",
                 "failure",
                 "slow",
+                "unhealthy",
+                "denied",
+                "reject",
+                "drift",
             ],
             "adoption_plan": [
                 "adopt",
@@ -139,6 +143,9 @@ class AdvisorEngine:
                 "idle",
                 "efficiency",
                 "optimize",
+                "token",
+                "tokens",
+                "usage",
             ],
         }
 
@@ -233,9 +240,9 @@ class AdvisorEngine:
             "Production alarms\n"
             f"{alarm_lines}\n\n"
             "Recommended demo story\n"
-            "- Show service health first: desired vs running tasks and deployment state.\n"
-            "- Show customer impact next: ALB latency, 4xx, 5xx, and unhealthy targets.\n"
-            "- Show investigation depth: application errors, traces, and service map.\n"
+            "- Show service health first: availability, current state, and recent changes.\n"
+            "- Show customer impact next: request volume, latency, error rate, and saturation.\n"
+            "- Show investigation depth: logs, traces, events, and dependency signals.\n"
             "- Close with evidence: alarms exist, logs exist, dashboard exists, and security checks are visible.\n"
         )
 
@@ -252,14 +259,13 @@ class AdvisorEngine:
             "- AWS Security Hub for centralized findings.\n"
             "- AWS Config for configuration compliance and drift.\n"
             "- Amazon GuardDuty for runtime threat findings.\n"
-            "- Amazon ECR image scanning for container vulnerability evidence.\n"
             "- AWS CloudTrail for deployment and API audit history.\n\n"
             "Evidence the security team should review\n"
-            "- Task role policy and execution role policy.\n"
-            "- Security group path: internet -> ALB -> ECS task only.\n"
-            "- ECR scan result for the deployed image tag.\n"
-            "- CloudTrail events for ECS, IAM, ECR, and deployment changes.\n"
-            "- Security Hub and Config findings for the service VPC and workload.\n"
+            "- IAM policies, resource policies, and service-linked roles.\n"
+            "- Network path, public exposure, encryption, and logging configuration.\n"
+            "- CloudTrail events for configuration and deployment changes.\n"
+            "- Security Hub and Config findings for the workload and its dependencies.\n"
+            "- Service-specific evidence listed in the controls above.\n"
         )
 
     def _build_logs_troubleshooting_answer(self, message: str, pack: dict[str, Any]) -> str:
@@ -271,17 +277,17 @@ class AdvisorEngine:
         return (
             f"{pack['name']} troubleshooting workflow\n\n"
             "Use this order when someone reports latency, errors, or failed requests:\n\n"
-            "1. Check ALB target health and `HTTPCode_Target_5XX_Count`.\n"
-            "2. Check ECS desired vs running task count and recent deployment events.\n"
-            "3. Check CPU and memory saturation for the service.\n"
-            "4. Search application logs for error signatures.\n"
-            "5. Follow traces through X-Ray or OpenTelemetry to find the slow dependency.\n\n"
+            "1. Check the primary error and latency metrics for the selected service.\n"
+            "2. Check resource health, recent deployments, and configuration changes.\n"
+            "3. Check saturation signals such as concurrency, CPU, memory, quota, backlog, or capacity.\n"
+            "4. Search logs for error signatures and denied access events.\n"
+            "5. Follow traces, request IDs, or audit events to find the failing dependency or control.\n\n"
             "CloudWatch Logs Insights queries\n"
             f"{queries}\n\n"
             "Decision rule\n"
-            "- ALB 5xx with healthy CPU/memory usually points to application or dependency failures.\n"
-            "- Unhealthy targets usually point to health check, port, startup, or networking issues.\n"
-            "- High latency with low errors usually needs trace analysis and downstream dependency checks.\n"
+            "- High errors after a deployment usually points to code, config, IAM, or dependency changes.\n"
+            "- Health failures usually point to reachability, permissions, startup, quotas, or backend availability.\n"
+            "- High latency with low errors usually needs trace, dependency, payload, or capacity analysis.\n"
         )
 
     def _build_adoption_answer(self, message: str, pack: dict[str, Any]) -> str:
@@ -292,14 +298,14 @@ class AdvisorEngine:
             f"{adoption}\n\n"
             "Operating model\n"
             "- Platform team owns Terraform module, dashboard template, and default alarms.\n"
-            "- Application team owns service SLOs, runbooks, and application log quality.\n"
+            "- Application or service team owns SLOs, runbooks, and log quality.\n"
             "- Security team owns evidence review through Security Hub, Config, GuardDuty, CloudTrail, and ECR scans.\n"
             "- SRE or operations team owns incident routing and alarm tuning.\n\n"
             "Definition of done\n"
             "- Dashboard exists and is linked from the service runbook.\n"
             "- Required alarms exist and route to the correct team.\n"
-            "- ECS tasks are private behind the ALB.\n"
-            "- Logs and traces can explain at least one end-to-end request path.\n"
+            "- Network, identity, encryption, and logging controls are documented.\n"
+            "- Logs, traces, metrics, or audit events can explain one end-to-end request or operation path.\n"
             "- Security evidence is reviewable without manual screenshots.\n"
         )
 
@@ -307,17 +313,17 @@ class AdvisorEngine:
         return (
             f"{pack['name']} cost and efficiency lens\n\n"
             "Primary cost signals\n"
-            "- Fargate CPU and memory allocation versus actual utilization.\n"
-            "- Desired task count versus request volume.\n"
-            "- Idle capacity during off-peak periods.\n"
-            "- ALB request volume and target response time.\n"
-            "- NAT gateway usage when private tasks need internet egress.\n\n"
+            "- Request or invocation volume versus provisioned capacity.\n"
+            "- Error, retry, and throttling behavior that increases waste.\n"
+            "- Logging, tracing, and retention volume.\n"
+            "- Data transfer, storage, or token usage where relevant.\n"
+            "- Idle capacity during off-peak periods.\n\n"
             "Optimization actions\n"
-            "- Right-size task CPU and memory after observing one normal traffic cycle.\n"
-            "- Use target tracking autoscaling for CPU, memory, or request count per target.\n"
-            "- Prefer VPC endpoints for ECR, CloudWatch Logs, and AWS APIs when NAT cost becomes material.\n"
-            "- Keep ECR lifecycle policy enabled to expire old images.\n"
-            "- Review CloudWatch dashboard usage and log retention to control observability cost.\n"
+            "- Right-size capacity after observing one normal traffic cycle.\n"
+            "- Tune autoscaling, quotas, caching, lifecycle, or retention policies.\n"
+            "- Prefer private endpoints or managed controls where they reduce NAT or data-transfer cost.\n"
+            "- Review CloudWatch dashboard usage, metric cardinality, and log retention.\n"
+            "- Keep service-specific cleanup policies enabled for old artifacts and stale data.\n"
         )
 
     def _actions_for_intent(self, pack: dict[str, Any], intent: str) -> list[str]:

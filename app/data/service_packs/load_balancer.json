@@ -1,0 +1,183 @@
+{
+  "id": "load-balancer",
+  "name": "Elastic Load Balancing",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for Application Load Balancers and target groups.",
+  "keywords": ["load balancer", "alb", "elb", "target group", "target health", "listener", "application load balancer"],
+  "aws_services": [
+    "Elastic Load Balancing",
+    "Amazon CloudWatch",
+    "AWS WAF",
+    "AWS CloudTrail",
+    "AWS Config",
+    "AWS Security Hub",
+    "Amazon GuardDuty"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track traffic, latency, target health, response codes, TLS posture, and routing health."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Use access logs, target health reason codes, and request traces to explain routing failures."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure availability, error rate, latency SLOs, and backend health."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Protect entry points with TLS, WAF, security groups, and least-exposed listeners."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate listener rules, certificates, target health, and public exposure."
+    }
+  ],
+  "dashboard": {
+    "name": "Load Balancer Production Health",
+    "sections": [
+      {
+        "name": "Traffic Overview",
+        "purpose": "Request count, active connections, processed bytes, and traffic trend."
+      },
+      {
+        "name": "Target Health",
+        "purpose": "Healthy and unhealthy target count, reason codes, and target group distribution."
+      },
+      {
+        "name": "Latency",
+        "purpose": "Target response time, p95 latency, and slow target identification."
+      },
+      {
+        "name": "HTTP Errors",
+        "purpose": "ELB 4xx/5xx, target 4xx/5xx, rejected connections, and routing failures."
+      },
+      {
+        "name": "Security Edge",
+        "purpose": "TLS policy, certificate expiry process, WAF blocks, and public listener exposure."
+      },
+      {
+        "name": "Access Logs",
+        "purpose": "Request path, client IP, target, status code, and user agent analysis."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "RequestCount",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Measure incoming traffic volume."
+    },
+    {
+      "name": "TargetResponseTime",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Measure backend response latency."
+    },
+    {
+      "name": "HTTPCode_Target_5XX_Count",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Detect backend application failures."
+    },
+    {
+      "name": "HTTPCode_ELB_5XX_Count",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Detect load balancer-side failures."
+    },
+    {
+      "name": "HealthyHostCount",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Confirm backend availability."
+    },
+    {
+      "name": "UnHealthyHostCount",
+      "namespace": "AWS/ApplicationELB",
+      "why": "Detect unhealthy or unreachable targets."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "ALB 5xx access log entries",
+      "intent": "Find requests returning target or ELB 5xx.",
+      "query": "fields @timestamp, elb_status_code, target_status_code, request_url, target_ip, user_agent | filter elb_status_code like /^5/ or target_status_code like /^5/ | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "ALB slow requests",
+      "intent": "Find requests with high target processing time.",
+      "query": "fields @timestamp, target_processing_time, request_url, target_ip, elb_status_code, target_status_code | filter target_processing_time > 1 | sort target_processing_time desc | limit 50"
+    },
+    {
+      "name": "ALB WAF blocked requests",
+      "intent": "Find WAF-blocked requests if WAF logs are centralized.",
+      "query": "fields @timestamp, action, terminatingRuleId, httpRequest.clientIp, httpRequest.uri | filter action = \"BLOCK\" | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "ALBTarget5xxHigh",
+      "condition": "HTTPCode_Target_5XX_Count above threshold for 5 minutes",
+      "action": "Inspect target group health, backend logs, and recent deployments."
+    },
+    {
+      "name": "ALBElb5xxHigh",
+      "condition": "HTTPCode_ELB_5XX_Count above threshold",
+      "action": "Inspect load balancer configuration, capacity signals, and AWS service health."
+    },
+    {
+      "name": "ALBTargetLatencyHigh",
+      "condition": "TargetResponseTime p95 above SLO threshold",
+      "action": "Inspect slow targets and downstream dependencies."
+    },
+    {
+      "name": "ALBUnhealthyTargets",
+      "condition": "UnHealthyHostCount greater than zero",
+      "action": "Investigate health check path, target port, security groups, and app startup."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "TLS listener policy",
+      "evidence": "HTTPS listeners use approved TLS policies and managed certificates."
+    },
+    {
+      "name": "WAF association",
+      "evidence": "Public ALBs are associated with AWS WAF where internet-facing."
+    },
+    {
+      "name": "Access logs",
+      "evidence": "ALB access logs are enabled to a controlled S3 bucket with retention."
+    },
+    {
+      "name": "Security group path",
+      "evidence": "Only required listener ports are exposed and target access is restricted to the ALB security group."
+    },
+    {
+      "name": "CloudTrail auditability",
+      "evidence": "Listener, target group, certificate, and security group changes are visible in CloudTrail."
+    }
+  ],
+  "adoption_plan": [
+    "Enable ALB access logs for internet-facing load balancers.",
+    "Create dashboard sections for traffic, latency, target health, and HTTP errors.",
+    "Create alarms for target 5xx, ELB 5xx, latency, and unhealthy targets.",
+    "Review TLS policy, certificate ownership, WAF association, and security groups.",
+    "Document target health troubleshooting runbook.",
+    "Promote the pack as the standard for ALB-backed services."
+  ],
+  "references": [
+    {
+      "label": "Application Load Balancer metrics",
+      "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-cloudwatch-metrics.html"
+    },
+    {
+      "label": "Application Load Balancer access logs",
+      "url": "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/load-balancer-access-logs.html"
+    },
+    {
+      "label": "AWS WAF",
+      "url": "https://docs.aws.amazon.com/waf/latest/developerguide/what-is-aws-waf.html"
+    }
+  ]
+}
+

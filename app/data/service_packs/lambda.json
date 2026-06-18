@@ -1,0 +1,185 @@
+{
+  "id": "lambda",
+  "name": "AWS Lambda",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for serverless Lambda workloads.",
+  "keywords": ["lambda", "function", "serverless", "cold start", "concurrency", "throttle", "throttles"],
+  "aws_services": [
+    "AWS Lambda",
+    "Amazon CloudWatch",
+    "AWS X-Ray",
+    "AWS CloudTrail",
+    "AWS Config",
+    "AWS Security Hub",
+    "Amazon GuardDuty",
+    "AWS IAM"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track function health, invocation volume, errors, throttles, duration, and concurrency."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Trace event source, function execution, and downstream service calls with X-Ray or OpenTelemetry."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure success rate, latency, retry behavior, and dead-letter or destination failures."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Validate least privilege, secrets handling, environment variables, and auditability."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate runtime health, dependency behavior, and deployment safety."
+    }
+  ],
+  "dashboard": {
+    "name": "Lambda Production Health",
+    "sections": [
+      {
+        "name": "Invocation Overview",
+        "purpose": "Invocation count, success rate, errors, retries, and event-source health."
+      },
+      {
+        "name": "Latency and Runtime",
+        "purpose": "Duration, p95/p99 latency, timeout proximity, memory use, and cold-start indicators."
+      },
+      {
+        "name": "Concurrency and Throttling",
+        "purpose": "Concurrent executions, unreserved concurrency pressure, throttles, and reserved concurrency limits."
+      },
+      {
+        "name": "Failures and Destinations",
+        "purpose": "Dead-letter queue volume, async destination failures, iterator age, and failed batches."
+      },
+      {
+        "name": "Traces and Dependencies",
+        "purpose": "X-Ray traces, downstream latency, dependency errors, and function segment faults."
+      },
+      {
+        "name": "Security Posture",
+        "purpose": "IAM role scope, environment variable exposure, CloudTrail changes, and Config/Security Hub findings."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "Invocations",
+      "namespace": "AWS/Lambda",
+      "why": "Measure workload volume and usage pattern."
+    },
+    {
+      "name": "Errors",
+      "namespace": "AWS/Lambda",
+      "why": "Detect failed executions and application exceptions."
+    },
+    {
+      "name": "Duration",
+      "namespace": "AWS/Lambda",
+      "why": "Track latency, timeout risk, and performance regression."
+    },
+    {
+      "name": "Throttles",
+      "namespace": "AWS/Lambda",
+      "why": "Detect concurrency limits blocking execution."
+    },
+    {
+      "name": "ConcurrentExecutions",
+      "namespace": "AWS/Lambda",
+      "why": "Understand scaling pressure and concurrency saturation."
+    },
+    {
+      "name": "IteratorAge",
+      "namespace": "AWS/Lambda",
+      "why": "Detect stream backlog for Kinesis or DynamoDB event sources."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "Lambda errors and exceptions",
+      "intent": "Find frequent Lambda error signatures.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(error|exception|traceback|task timed out)/ | stats count() by @message | sort count desc | limit 20"
+    },
+    {
+      "name": "Slow Lambda invocations",
+      "intent": "Find high-duration Lambda report lines.",
+      "query": "fields @timestamp, @message | filter @type = \"REPORT\" | sort @duration desc | limit 50"
+    },
+    {
+      "name": "Cold start indicators",
+      "intent": "Find initialization duration from Lambda report logs.",
+      "query": "fields @timestamp, @initDuration, @duration, @maxMemoryUsed | filter ispresent(@initDuration) | sort @initDuration desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "LambdaErrorRateHigh",
+      "condition": "Errors greater than expected baseline for 5 minutes",
+      "action": "Notify owner and inspect logs, traces, and recent deployments."
+    },
+    {
+      "name": "LambdaDurationNearTimeout",
+      "condition": "Duration p95 approaches configured timeout",
+      "action": "Review slow dependencies, timeout setting, and memory allocation."
+    },
+    {
+      "name": "LambdaThrottlesDetected",
+      "condition": "Throttles greater than zero for 5 minutes",
+      "action": "Review reserved concurrency, account concurrency, and event-source rate."
+    },
+    {
+      "name": "LambdaIteratorAgeHigh",
+      "condition": "IteratorAge above service threshold",
+      "action": "Investigate stream backlog, batch failures, and downstream latency."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Execution role least privilege",
+      "evidence": "Lambda execution role grants only required actions on scoped resources."
+    },
+    {
+      "name": "Secrets management",
+      "evidence": "Secrets are stored in Secrets Manager or Parameter Store instead of plaintext environment variables."
+    },
+    {
+      "name": "CloudTrail auditability",
+      "evidence": "Function updates, permission changes, and invocation policy changes are visible in CloudTrail."
+    },
+    {
+      "name": "Network control",
+      "evidence": "VPC-attached functions use controlled subnets and security groups when private resources are accessed."
+    },
+    {
+      "name": "Dependency hygiene",
+      "evidence": "Deployment package or layer dependencies are scanned in CI before production release."
+    }
+  ],
+  "adoption_plan": [
+    "Enable structured JSON logging for Lambda functions.",
+    "Create CloudWatch alarms for errors, duration, throttles, and backlog where applicable.",
+    "Enable X-Ray or OpenTelemetry tracing for critical functions.",
+    "Connect alarms to the incident channel or ticketing workflow.",
+    "Review execution role scope and secrets handling with the security team.",
+    "Create a standard Lambda dashboard template and runbook.",
+    "Promote the pack as the default serverless monitoring standard."
+  ],
+  "references": [
+    {
+      "label": "AWS Lambda CloudWatch metrics",
+      "url": "https://docs.aws.amazon.com/lambda/latest/dg/monitoring-metrics.html"
+    },
+    {
+      "label": "AWS Lambda X-Ray tracing",
+      "url": "https://docs.aws.amazon.com/lambda/latest/dg/services-xray.html"
+    },
+    {
+      "label": "AWS Lambda security best practices",
+      "url": "https://docs.aws.amazon.com/lambda/latest/dg/security-best-practices.html"
+    }
+  ]
+}
+

@@ -1,0 +1,185 @@
+{
+  "id": "vpc",
+  "name": "Amazon VPC",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and security adoption pack for VPC networking, traffic, and exposure controls.",
+  "keywords": ["vpc", "subnet", "route table", "security group", "nacl", "flow logs", "nat gateway", "network"],
+  "aws_services": [
+    "Amazon VPC",
+    "VPC Flow Logs",
+    "Amazon CloudWatch",
+    "AWS CloudTrail",
+    "AWS Config",
+    "AWS Security Hub",
+    "Amazon GuardDuty",
+    "VPC Reachability Analyzer",
+    "AWS Network Firewall"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track network traffic, rejected flows, NAT gateway health, endpoint usage, and subnet capacity."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Use flow logs, route tables, and reachability analysis to explain network paths and denied traffic."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure network availability, IP capacity, route correctness, and endpoint reliability."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Validate segmentation, least-exposed security groups, private subnet patterns, and threat findings."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate public exposure, route drift, security group changes, and traffic anomalies."
+    }
+  ],
+  "dashboard": {
+    "name": "VPC Network and Security Health",
+    "sections": [
+      {
+        "name": "Network Overview",
+        "purpose": "VPCs, subnets, route tables, gateways, endpoints, and IP utilization."
+      },
+      {
+        "name": "Flow Log Traffic",
+        "purpose": "Accepted and rejected flows, top talkers, ports, protocols, and cross-zone patterns."
+      },
+      {
+        "name": "Internet and NAT Egress",
+        "purpose": "NAT gateway bytes, packets, errors, port allocation, and public egress volume."
+      },
+      {
+        "name": "Private Connectivity",
+        "purpose": "VPC endpoint usage, private route coverage, and endpoint policy posture."
+      },
+      {
+        "name": "Threat and Exposure",
+        "purpose": "GuardDuty network findings, open security groups, public routes, and Config rule status."
+      },
+      {
+        "name": "Change Evidence",
+        "purpose": "CloudTrail events for route tables, security groups, NACLs, gateways, and endpoints."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "BytesOutToDestination",
+      "namespace": "AWS/NATGateway",
+      "why": "Track NAT egress volume and cost pressure."
+    },
+    {
+      "name": "ErrorPortAllocation",
+      "namespace": "AWS/NATGateway",
+      "why": "Detect NAT port exhaustion risk."
+    },
+    {
+      "name": "PacketsDropCount",
+      "namespace": "AWS/NetworkFirewall",
+      "why": "Track dropped traffic when Network Firewall is used."
+    },
+    {
+      "name": "AvailableIpAddressCount",
+      "namespace": "EC2 subnet attribute",
+      "why": "Detect subnet IP exhaustion before deployments fail."
+    },
+    {
+      "name": "Rejected flows",
+      "namespace": "VPC Flow Logs",
+      "why": "Identify blocked or misrouted traffic."
+    },
+    {
+      "name": "GuardDuty findings",
+      "namespace": "Amazon GuardDuty",
+      "why": "Detect suspicious network activity."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "Rejected VPC flows",
+      "intent": "Find blocked network traffic in VPC Flow Logs.",
+      "query": "fields @timestamp, srcAddr, dstAddr, dstPort, protocol, action | filter action = \"REJECT\" | stats count() by srcAddr, dstAddr, dstPort | sort count desc | limit 50"
+    },
+    {
+      "name": "Top egress destinations",
+      "intent": "Find high-volume outbound destinations.",
+      "query": "fields srcAddr, dstAddr, bytes, action | filter action = \"ACCEPT\" | stats sum(bytes) as totalBytes by dstAddr | sort totalBytes desc | limit 50"
+    },
+    {
+      "name": "Security group changes",
+      "intent": "Find security group ingress and egress rule changes in CloudTrail logs.",
+      "query": "fields @timestamp, eventName, userIdentity.arn, requestParameters.groupId | filter eventSource = \"ec2.amazonaws.com\" and eventName like /AuthorizeSecurityGroup|RevokeSecurityGroup|ModifySecurityGroup/ | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "NATGatewayPortAllocationErrors",
+      "condition": "ErrorPortAllocation greater than zero",
+      "action": "Review NAT gateway scaling, destination concentration, and endpoint alternatives."
+    },
+    {
+      "name": "SubnetIpCapacityLow",
+      "condition": "Available IP addresses below threshold",
+      "action": "Add subnet capacity or rebalance workload placement."
+    },
+    {
+      "name": "FlowLogRejectSpike",
+      "condition": "Rejected flow count spikes above baseline",
+      "action": "Review route tables, NACLs, security groups, and recent network changes."
+    },
+    {
+      "name": "PublicExposureChange",
+      "condition": "CloudTrail detects public route or open security group change",
+      "action": "Trigger security review and validate approved change ticket."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Flow logs enabled",
+      "evidence": "VPC Flow Logs are enabled for production VPCs and retained centrally."
+    },
+    {
+      "name": "Least-exposed security groups",
+      "evidence": "Security groups avoid broad inbound access except approved public entry points."
+    },
+    {
+      "name": "Private subnet pattern",
+      "evidence": "Application workloads use private subnets and expose traffic through approved gateways or load balancers."
+    },
+    {
+      "name": "Config network rules",
+      "evidence": "AWS Config checks public routes, open security groups, flow logs, and encryption-related controls."
+    },
+    {
+      "name": "GuardDuty network findings",
+      "evidence": "GuardDuty is enabled and findings are routed to Security Hub or incident workflow."
+    }
+  ],
+  "adoption_plan": [
+    "Enable VPC Flow Logs for production VPCs.",
+    "Create dashboards for rejected flows, NAT health, subnet capacity, and security findings.",
+    "Create alarms for NAT errors, subnet IP capacity, reject spikes, and public exposure changes.",
+    "Review security groups, route tables, NACLs, and VPC endpoint policies.",
+    "Run reachability analysis for critical private service paths.",
+    "Promote the pack as the standard network observability baseline."
+  ],
+  "references": [
+    {
+      "label": "VPC Flow Logs",
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/flow-logs.html"
+    },
+    {
+      "label": "NAT Gateway CloudWatch metrics",
+      "url": "https://docs.aws.amazon.com/vpc/latest/userguide/metrics-dimensions-nat-gateway.html"
+    },
+    {
+      "label": "VPC Reachability Analyzer",
+      "url": "https://docs.aws.amazon.com/vpc/latest/reachability/what-is-reachability-analyzer.html"
+    }
+  ]
+}
+

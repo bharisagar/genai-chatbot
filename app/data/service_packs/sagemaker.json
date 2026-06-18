@@ -1,0 +1,186 @@
+{
+  "id": "sagemaker",
+  "name": "Amazon SageMaker",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, and governance adoption pack for SageMaker endpoints and ML workflows.",
+  "keywords": ["sagemaker", "endpoint", "model monitor", "clarify", "ml", "machine learning", "inference", "training job"],
+  "aws_services": [
+    "Amazon SageMaker",
+    "Amazon CloudWatch",
+    "SageMaker Model Monitor",
+    "SageMaker Clarify",
+    "AWS CloudTrail",
+    "Amazon S3",
+    "AWS IAM",
+    "AWS Config",
+    "AWS Security Hub"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track endpoint invocation volume, latency, errors, model/container health, and resource utilization."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Use Clarify, feature attribution, model cards, and lineage to explain model behavior."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure prediction quality, data drift, model drift, baseline deviation, and endpoint SLOs."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Validate bias, data protection, endpoint access, encryption, and model governance controls."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously validate model performance, drift, retraining signals, and deployment safety."
+    }
+  ],
+  "dashboard": {
+    "name": "SageMaker Model Runtime Health",
+    "sections": [
+      {
+        "name": "Endpoint Overview",
+        "purpose": "Endpoint status, variant traffic, invocation volume, and deployment state."
+      },
+      {
+        "name": "Latency and Errors",
+        "purpose": "Model latency, overhead latency, invocation errors, 4xx/5xx, and timeout behavior."
+      },
+      {
+        "name": "Resource Utilization",
+        "purpose": "CPU, memory, GPU, disk, and instance-level pressure for hosted endpoints."
+      },
+      {
+        "name": "Data and Model Quality",
+        "purpose": "Model Monitor baselines, data drift, constraint violations, and missing features."
+      },
+      {
+        "name": "Explainability and Bias",
+        "purpose": "Clarify bias reports, feature attribution, and model card evidence."
+      },
+      {
+        "name": "Security Posture",
+        "purpose": "Endpoint IAM access, encryption, network isolation, CloudTrail changes, and Security Hub findings."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "Invocations",
+      "namespace": "AWS/SageMaker",
+      "why": "Track model endpoint traffic volume."
+    },
+    {
+      "name": "Invocation4XXErrors",
+      "namespace": "AWS/SageMaker",
+      "why": "Detect client request or validation issues."
+    },
+    {
+      "name": "Invocation5XXErrors",
+      "namespace": "AWS/SageMaker",
+      "why": "Detect model container or service-side failures."
+    },
+    {
+      "name": "ModelLatency",
+      "namespace": "AWS/SageMaker",
+      "why": "Measure model inference time."
+    },
+    {
+      "name": "OverheadLatency",
+      "namespace": "AWS/SageMaker",
+      "why": "Measure SageMaker overhead outside model execution."
+    },
+    {
+      "name": "CPUUtilization",
+      "namespace": "/aws/sagemaker/Endpoints",
+      "why": "Track endpoint host saturation."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "SageMaker endpoint errors",
+      "intent": "Find endpoint container errors.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(error|exception|traceback|modelerror|timeout)/ | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "SageMaker slow inference",
+      "intent": "Find slow model invocation log entries when latency is logged.",
+      "query": "fields @timestamp, @message, latencyMs | filter latencyMs > 1000 | sort latencyMs desc | limit 50"
+    },
+    {
+      "name": "SageMaker endpoint changes",
+      "intent": "Find endpoint configuration and deployment changes in CloudTrail logs.",
+      "query": "fields @timestamp, eventName, userIdentity.arn, requestParameters.endpointName | filter eventSource = \"sagemaker.amazonaws.com\" and eventName like /CreateEndpoint|UpdateEndpoint|DeleteEndpoint|CreateEndpointConfig/ | sort @timestamp desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "SageMaker5xxHigh",
+      "condition": "Invocation5XXErrors above threshold",
+      "action": "Inspect endpoint logs, container health, model artifact, and recent deployments."
+    },
+    {
+      "name": "SageMakerLatencyHigh",
+      "condition": "ModelLatency or OverheadLatency above SLO threshold",
+      "action": "Review model performance, instance size, autoscaling, and payload size."
+    },
+    {
+      "name": "SageMakerInvocationDrop",
+      "condition": "Invocation volume drops unexpectedly",
+      "action": "Check upstream callers, endpoint health, DNS, and deployment changes."
+    },
+    {
+      "name": "SageMakerModelMonitorViolation",
+      "condition": "Model Monitor constraint violations detected",
+      "action": "Review drift report, input data quality, and retraining workflow."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Endpoint IAM least privilege",
+      "evidence": "InvokeEndpoint permissions are scoped to approved applications and endpoints."
+    },
+    {
+      "name": "Encryption",
+      "evidence": "Model artifacts, data capture, and endpoint resources use approved encryption settings."
+    },
+    {
+      "name": "Network isolation",
+      "evidence": "Endpoints use VPC configuration or approved network controls for private workloads."
+    },
+    {
+      "name": "Model quality monitoring",
+      "evidence": "Model Monitor baselines and schedules exist for production models where required."
+    },
+    {
+      "name": "Explainability and bias review",
+      "evidence": "Clarify reports or model cards are maintained for governed ML use cases."
+    }
+  ],
+  "adoption_plan": [
+    "Classify SageMaker endpoints by business criticality and model risk.",
+    "Enable endpoint logs, CloudWatch metrics, and data capture where required.",
+    "Create dashboards for latency, errors, invocations, resource pressure, and drift.",
+    "Create alarms for 5xx, latency, traffic drop, and Model Monitor violations.",
+    "Review endpoint IAM, encryption, VPC configuration, and artifact access.",
+    "Attach Model Monitor and Clarify evidence for governed models.",
+    "Promote the pack as the default SageMaker production governance standard."
+  ],
+  "references": [
+    {
+      "label": "SageMaker endpoint monitoring",
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/monitoring-cloudwatch.html"
+    },
+    {
+      "label": "SageMaker Model Monitor",
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/model-monitor.html"
+    },
+    {
+      "label": "SageMaker Clarify",
+      "url": "https://docs.aws.amazon.com/sagemaker/latest/dg/clarify-fairness-and-explainability.html"
+    }
+  ]
+}
+

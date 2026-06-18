@@ -20,9 +20,22 @@ User -> Chat UI -> FastAPI -> Service Pack Catalog
 
 The core production principle is that the LLM advises from curated service packs. It should not freely invent dashboards, alarms, or security controls.
 
-## Implemented Service Pack
+## Implemented Service Packs
 
-`ecs-fargate`
+The chatbot now includes these approved service packs:
+
+- `ecs-fargate`
+- `lambda`
+- `s3`
+- `api-gateway`
+- `load-balancer`
+- `vpc`
+- `bedrock`
+- `sagemaker`
+
+The first production deployment still runs on ECS/Fargate, but the advisor can answer across the services above.
+
+## ECS/Fargate Pack
 
 - ECS cluster and service health
 - Fargate CPU, memory, desired/running task drift
@@ -133,12 +146,10 @@ Example:
 
 ## Next Service Packs
 
-Add JSON files under `app/data/service_packs` for:
+Add JSON files under `app/data/service_packs` for any additional organization standards, such as:
 
-- Lambda
-- S3
-- API Gateway
-- Load Balancer
-- VPC
-- Bedrock
-- SageMaker
+- DynamoDB
+- RDS and Aurora
+- Step Functions
+- EKS
+- CloudFront

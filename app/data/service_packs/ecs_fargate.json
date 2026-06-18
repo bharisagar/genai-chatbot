@@ -11,8 +11,7 @@
     "task",
     "cluster",
     "service",
-    "alb",
-    "load balancer",
+    "ecs service",
     "docker"
   ],
   "aws_services": [
@@ -220,4 +219,3 @@
     }
   ]
 }
-

@@ -4,6 +4,11 @@ const messages = document.querySelector("#messages");
 const healthStatus = document.querySelector("#healthStatus");
 const runtimeMode = document.querySelector("#runtimeMode");
 const bedrockToggle = document.querySelector("#bedrockToggle");
+const serviceSelect = document.querySelector("#serviceSelect");
+const activePackName = document.querySelector("#activePackName");
+const activePackSummary = document.querySelector("#activePackSummary");
+
+let servicePacks = [];
 
 function appendMessage(role, text, meta = "") {
   const node = document.createElement("div");
@@ -55,6 +60,38 @@ async function checkRuntime() {
   }
 }
 
+function updateActivePack() {
+  const selected = servicePacks.find((pack) => pack.id === serviceSelect.value);
+  if (!selected) {
+    activePackName.textContent = "Auto detect";
+    activePackSummary.textContent = "Ask naturally and the advisor will choose the closest AWS service pack.";
+    return;
+  }
+  activePackName.textContent = selected.name;
+  activePackSummary.textContent = selected.summary;
+}
+
+async function loadServicePacks() {
+  try {
+    const response = await fetch("/api/service-packs");
+    if (!response.ok) {
+      throw new Error("Service pack load failed");
+    }
+    servicePacks = await response.json();
+    servicePacks.forEach((pack) => {
+      const option = document.createElement("option");
+      option.value = pack.id;
+      option.textContent = pack.name;
+      serviceSelect.appendChild(option);
+    });
+    serviceSelect.value = "ecs-fargate";
+    updateActivePack();
+  } catch (error) {
+    activePackName.textContent = "Service packs unavailable";
+    activePackSummary.textContent = "The advisor API did not return service-pack metadata.";
+  }
+}
+
 async function sendMessage(text) {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -73,7 +110,7 @@ async function sendMessage(text) {
       },
       body: JSON.stringify({
         message: trimmed,
-        service_id: "ecs-fargate",
+        service_id: serviceSelect.value || null,
         use_bedrock: bedrockToggle.checked
       })
     });
@@ -83,8 +120,12 @@ async function sendMessage(text) {
     }
 
     const payload = await response.json();
+    if (!serviceSelect.value && payload.service_id) {
+      serviceSelect.value = payload.service_id;
+      updateActivePack();
+    }
     const sourceLabel = payload.response_source === "bedrock_grounded" ? "Bedrock grounded" : "Service pack";
-    appendMessage("assistant", payload.answer, `${sourceLabel} | ${payload.intent}`);
+    appendMessage("assistant", payload.answer, `${sourceLabel} | ${payload.service_name} | ${payload.intent}`);
   } catch (error) {
     appendMessage("system", "The advisor API did not respond. Check the backend logs and try again.");
   } finally {
@@ -104,6 +145,8 @@ document.querySelectorAll("[data-prompt]").forEach((button) => {
   });
 });
 
+serviceSelect.addEventListener("change", updateActivePack);
+
 input.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
@@ -113,3 +156,4 @@ input.addEventListener("keydown", (event) => {
 
 checkHealth();
 checkRuntime();
+loadServicePacks();

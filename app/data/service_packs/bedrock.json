@@ -1,0 +1,185 @@
+{
+  "id": "bedrock",
+  "name": "Amazon Bedrock",
+  "status": "implemented",
+  "summary": "Production monitoring, observability, safety, and governance adoption pack for Amazon Bedrock workloads.",
+  "keywords": ["bedrock", "model", "llm", "foundation model", "guardrail", "knowledge base", "agent", "prompt", "token"],
+  "aws_services": [
+    "Amazon Bedrock",
+    "Amazon Bedrock Guardrails",
+    "Amazon Bedrock Knowledge Bases",
+    "Amazon CloudWatch",
+    "AWS CloudTrail",
+    "Amazon S3",
+    "AWS IAM",
+    "AWS Security Hub"
+  ],
+  "trusted_ai_pillars": [
+    {
+      "name": "Observability",
+      "outcome": "Track request volume, latency, model errors, throttling, token usage, cost, and invocation logs."
+    },
+    {
+      "name": "Explainability",
+      "outcome": "Capture prompt context, knowledge-base citations, tool use, and model routing rationale where applicable."
+    },
+    {
+      "name": "Quality",
+      "outcome": "Measure groundedness, relevance, faithfulness, hallucination risk, and user satisfaction."
+    },
+    {
+      "name": "Ethics and Safety",
+      "outcome": "Detect prompt injection, unsafe content, PII exposure, policy violations, and guardrail interventions."
+    },
+    {
+      "name": "Continuous Validation",
+      "outcome": "Continuously evaluate prompts, retrieval quality, regression datasets, and model behavior."
+    }
+  ],
+  "dashboard": {
+    "name": "Bedrock AI Runtime Governance",
+    "sections": [
+      {
+        "name": "Invocation Overview",
+        "purpose": "Request volume, success rate, model ID, application, user segment, and traffic pattern."
+      },
+      {
+        "name": "Latency and Errors",
+        "purpose": "End-to-end latency, model latency, throttles, validation errors, and service exceptions."
+      },
+      {
+        "name": "Token and Cost Usage",
+        "purpose": "Input tokens, output tokens, total tokens, cost trend, and expensive prompt patterns."
+      },
+      {
+        "name": "Guardrail Safety",
+        "purpose": "Guardrail interventions, blocked prompts, sensitive content, and safety policy matches."
+      },
+      {
+        "name": "RAG Quality",
+        "purpose": "Knowledge-base retrieval hit rate, citation coverage, source attribution, and stale document signals."
+      },
+      {
+        "name": "Audit and Access",
+        "purpose": "CloudTrail model invocation configuration changes, IAM access, and model access changes."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "name": "Invocations",
+      "namespace": "AWS/Bedrock",
+      "why": "Track model usage and application demand."
+    },
+    {
+      "name": "InvocationLatency",
+      "namespace": "AWS/Bedrock",
+      "why": "Measure model response performance."
+    },
+    {
+      "name": "InvocationClientErrors",
+      "namespace": "AWS/Bedrock",
+      "why": "Detect invalid requests or client-side issues."
+    },
+    {
+      "name": "InvocationServerErrors",
+      "namespace": "AWS/Bedrock",
+      "why": "Detect service-side invocation failures."
+    },
+    {
+      "name": "InputTokenCount",
+      "namespace": "AWS/Bedrock",
+      "why": "Track prompt size and cost pressure."
+    },
+    {
+      "name": "OutputTokenCount",
+      "namespace": "AWS/Bedrock",
+      "why": "Track generated output volume and cost pressure."
+    }
+  ],
+  "log_queries": [
+    {
+      "name": "Bedrock invocation errors",
+      "intent": "Find failed Bedrock runtime requests from application logs.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(bedrock|invoke).*?(error|exception|throttl|accessdenied)/ | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "Prompt injection signals",
+      "intent": "Find prompt-injection or policy-bypass patterns in sanitized logs.",
+      "query": "fields @timestamp, @message | filter @message like /(?i)(ignore previous|system prompt|developer message|jailbreak|bypass policy)/ | sort @timestamp desc | limit 50"
+    },
+    {
+      "name": "High token requests",
+      "intent": "Find high-token requests when token counts are logged.",
+      "query": "fields @timestamp, modelId, inputTokens, outputTokens, totalTokens | filter totalTokens > 4000 | sort totalTokens desc | limit 50"
+    }
+  ],
+  "alarms": [
+    {
+      "name": "BedrockInvocationErrorsHigh",
+      "condition": "Invocation errors above baseline for 5 minutes",
+      "action": "Review model access, quotas, request validation, and application logs."
+    },
+    {
+      "name": "BedrockLatencyHigh",
+      "condition": "Invocation latency above SLO threshold",
+      "action": "Review model selection, prompt size, region, and retry behavior."
+    },
+    {
+      "name": "BedrockTokenUsageSpike",
+      "condition": "Input or output tokens spike above baseline",
+      "action": "Review prompt templates, user input size, and cost controls."
+    },
+    {
+      "name": "BedrockGuardrailInterventionsHigh",
+      "condition": "Guardrail interventions above expected baseline",
+      "action": "Review user prompts, safety policy, and escalation workflow."
+    }
+  ],
+  "security_controls": [
+    {
+      "name": "Model access control",
+      "evidence": "IAM policies restrict model invocation to approved applications and model IDs."
+    },
+    {
+      "name": "Invocation logging",
+      "evidence": "Model invocation logging is enabled to approved S3 or CloudWatch destinations where required."
+    },
+    {
+      "name": "Guardrails",
+      "evidence": "Guardrails are attached to production use cases that need safety, PII, or topic controls."
+    },
+    {
+      "name": "Prompt and response handling",
+      "evidence": "Sensitive prompts and responses are redacted or excluded from logs according to data policy."
+    },
+    {
+      "name": "CloudTrail auditability",
+      "evidence": "Model access, guardrail, knowledge-base, and logging configuration changes are auditable."
+    }
+  ],
+  "adoption_plan": [
+    "Define approved model IDs and inference profiles by use case.",
+    "Enable invocation logging according to data classification policy.",
+    "Attach guardrails for safety, PII, denied topics, and harmful content where required.",
+    "Create dashboards for invocation volume, latency, errors, tokens, cost, and safety interventions.",
+    "Build evaluation datasets for groundedness, relevance, and regression tests.",
+    "Create incident runbooks for throttling, model access failures, prompt injection, and unsafe outputs.",
+    "Promote the pack as the default Bedrock production governance standard."
+  ],
+  "references": [
+    {
+      "label": "Amazon Bedrock model invocation logging",
+      "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/model-invocation-logging.html"
+    },
+    {
+      "label": "Amazon Bedrock Guardrails",
+      "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/guardrails.html"
+    },
+    {
+      "label": "Amazon Bedrock Knowledge Bases",
+      "url": "https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base.html"
+    }
+  ]
+}
+

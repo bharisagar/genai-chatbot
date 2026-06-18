@@ -7,8 +7,18 @@ def test_ecs_pack_is_loaded() -> None:
 
     packs = advisor.list_packs()
 
-    assert len(packs) == 1
-    assert packs[0].id == "ecs-fargate"
+    pack_ids = {pack.id for pack in packs}
+
+    assert {
+        "api-gateway",
+        "bedrock",
+        "ecs-fargate",
+        "lambda",
+        "load-balancer",
+        "s3",
+        "sagemaker",
+        "vpc",
+    }.issubset(pack_ids)
 
 
 def test_ecs_question_returns_dashboard_and_alarm_content() -> None:
@@ -88,3 +98,22 @@ def test_runtime_status_reports_service_pack_mode_by_default() -> None:
 
     assert status.mode == "service_pack"
     assert status.bedrock_enabled is False
+
+
+def test_classifier_routes_common_service_questions() -> None:
+    advisor = AdvisorEngine()
+
+    cases = {
+        "monitor Lambda errors": "lambda",
+        "S3 bucket security evidence": "s3",
+        "API Gateway latency dashboard": "api-gateway",
+        "ALB unhealthy targets": "load-balancer",
+        "VPC flow logs rejects": "vpc",
+        "Bedrock token usage": "bedrock",
+        "SageMaker model drift": "sagemaker",
+    }
+
+    for question, expected_service_id in cases.items():
+        response = advisor.answer(ChatRequest(message=question, use_bedrock=False))
+
+        assert response.service_id == expected_service_id

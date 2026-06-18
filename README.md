@@ -46,6 +46,23 @@ GET /api/observability/recent
 
 Terraform adds CloudWatch dashboard widgets for chatbot request volume, errors, latency, token usage, estimated cost, requests by service, requests by intent, and explainability evidence. MCP can be added later as a natural-language query layer over CloudWatch Logs Insights, CloudWatch Metrics, and S3/Athena evidence; it should not replace the telemetry pipeline.
 
+## AWS Resource Observability
+
+The deployed ECS/Fargate stack also captures the main AWS resources used to run the chatbot:
+
+- ECS/Fargate: CPU, memory, desired/running task count, task health
+- Application Load Balancer: request path latency, target 5xx, healthy/unhealthy hosts
+- NAT Gateway: egress bytes, ingress bytes, dropped packets, port allocation errors
+- VPC Flow Logs: accepted/rejected network traffic evidence for the chatbot VPC
+- CloudWatch Logs: application log ingestion and VPC Flow Log ingestion volume
+- ECR: repository pull count and scan-on-push repository configuration
+- Bedrock: token and estimated cost metrics from the chatbot app when Bedrock mode is enabled
+
+The dashboard intentionally separates these layers:
+
+- Agent layer: request volume, success rate, token usage, explainability, and response quality signals
+- Resource layer: ECS, ALB, NAT, VPC, logs, ECR, and optional Bedrock runtime signals
+
 ## Implemented Service Packs
 
 The chatbot now includes these approved service packs:
@@ -118,9 +135,11 @@ The next stage is deployable through Terraform and a PowerShell helper. Terrafor
 - Public ALB subnets
 - Private ECS/Fargate task subnets
 - Optional NAT gateway for private task egress
+- Optional VPC Flow Logs for network observability and security evidence
 - ECS cluster, task definition, service, ALB, target group
 - CloudWatch log group, alarms, and dashboard
 - Chatbot observability metrics, explainability log views, token/cost widgets, and governance alarms
+- Resource observability widgets and alarms for ALB, ECS, NAT, VPC Flow Logs, CloudWatch Logs, and ECR
 
 Run the deployment helper after Docker Desktop is running:
 

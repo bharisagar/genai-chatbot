@@ -46,6 +46,18 @@ variable "enable_nat_gateway" {
   default     = true
 }
 
+variable "enable_vpc_flow_logs" {
+  description = "Enable VPC Flow Logs to CloudWatch Logs for network observability and security evidence."
+  type        = bool
+  default     = true
+}
+
+variable "vpc_flow_log_retention_days" {
+  description = "CloudWatch retention period for VPC Flow Logs."
+  type        = number
+  default     = 14
+}
+
 variable "single_nat_gateway" {
   description = "Use one NAT gateway for lower demo cost. Set false for one NAT gateway per AZ in stronger production setups."
   type        = bool

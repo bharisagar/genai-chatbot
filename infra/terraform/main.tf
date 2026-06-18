@@ -7,6 +7,105 @@ locals {
     Application = var.name
     ManagedBy   = "terraform"
   }
+  nat_gateway_dashboard_widgets = [
+    for nat in aws_nat_gateway.this : {
+      type   = "metric"
+      x      = 0
+      y      = 46
+      width  = 12
+      height = 6
+      properties = {
+        title  = "NAT Gateway Egress and Drops"
+        view   = "timeSeries"
+        region = var.aws_region
+        metrics = [
+          ["AWS/NATGateway", "BytesOutToDestination", "NatGatewayId", nat.id, { stat = "Sum", label = "Bytes out to internet" }],
+          [".", "BytesInFromDestination", ".", ".", { stat = "Sum", label = "Bytes in from internet" }],
+          [".", "PacketsDropCount", ".", ".", { stat = "Sum", label = "Dropped packets" }],
+          [".", "ErrorPortAllocation", ".", ".", { stat = "Sum", label = "Port allocation errors" }]
+        ]
+      }
+    }
+  ]
+  vpc_flow_dashboard_widgets = flatten([
+    for log_group in aws_cloudwatch_log_group.vpc_flow : [
+      {
+        type   = "metric"
+        x      = 12
+        y      = 46
+        width  = 12
+        height = 6
+        properties = {
+          title  = "VPC Flow Log Ingestion"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AWS/Logs", "IncomingLogEvents", "LogGroupName", log_group.name, { stat = "Sum" }],
+            [".", "IncomingBytes", ".", ".", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 52
+        width  = 24
+        height = 6
+        properties = {
+          title  = "VPC Flow Reject Evidence"
+          region = var.aws_region
+          query  = "SOURCE '${log_group.name}' | fields @timestamp, srcAddr, dstAddr, srcPort, dstPort, protocol, action, logStatus | filter action = 'REJECT' | sort @timestamp desc | limit 50"
+        }
+      }
+    ]
+  ])
+  support_resource_dashboard_widgets = concat(
+    [
+      {
+        type   = "text"
+        x      = 0
+        y      = 44
+        width  = 24
+        height = 2
+        properties = {
+          markdown = "# Supporting AWS Resource Observability\nResource-level telemetry for the main services used by the chatbot stack: VPC, NAT, CloudWatch Logs, ECR, ALB, ECS, and optional Bedrock."
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 58
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Application Log Ingestion"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AWS/Logs", "IncomingLogEvents", "LogGroupName", aws_cloudwatch_log_group.app.name, { stat = "Sum" }],
+            [".", "IncomingBytes", ".", ".", { stat = "Sum" }]
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 58
+        width  = 12
+        height = 6
+        properties = {
+          title  = "ECR Repository Pulls"
+          view   = "timeSeries"
+          region = var.aws_region
+          metrics = [
+            ["AWS/ECR", "RepositoryPullCount", "RepositoryName", aws_ecr_repository.app.name, { stat = "Sum" }]
+          ]
+        }
+      }
+    ],
+    local.nat_gateway_dashboard_widgets,
+    local.vpc_flow_dashboard_widgets
+  )
 }
 
 resource "aws_ecr_repository" "app" {
@@ -404,6 +503,55 @@ resource "aws_cloudwatch_metric_alarm" "ecs_running_task_mismatch" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_log_metric_filter" "vpc_flow_rejects" {
+  count          = var.enable_vpc_flow_logs ? 1 : 0
+  name           = "${var.name}-vpc-flow-rejects"
+  log_group_name = aws_cloudwatch_log_group.vpc_flow[0].name
+  pattern        = "[version, account_id, interface_id, srcaddr, dstaddr, srcport, dstport, protocol, packets, bytes, start, end, action = \"REJECT\", log_status]"
+
+  metric_transformation {
+    name      = "VpcFlowRejectCount"
+    namespace = "AIOpsLens/Network"
+    value     = "1"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "vpc_flow_rejects" {
+  count               = var.enable_vpc_flow_logs ? 1 : 0
+  alarm_name          = "${var.name}-vpc-flow-rejects"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "VpcFlowRejectCount"
+  namespace           = "AIOpsLens/Network"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "VPC Flow Logs captured rejected traffic for the chatbot VPC."
+  treat_missing_data  = "notBreaching"
+
+  tags = local.common_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "nat_packets_dropped" {
+  for_each            = { for nat in aws_nat_gateway.this : nat.id => nat.id }
+  alarm_name          = "${var.name}-nat-packets-dropped-${each.key}"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "PacketsDropCount"
+  namespace           = "AWS/NATGateway"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "NAT gateway dropped packets for the chatbot stack."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    NatGatewayId = each.value
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "chatbot_errors" {
   alarm_name          = "${var.name}-chatbot-errors"
   comparison_operator = "GreaterThanThreshold"
@@ -484,7 +632,7 @@ resource "aws_cloudwatch_dashboard" "ecs" {
   dashboard_name = "${var.name}-ecs-fargate"
 
   dashboard_body = jsonencode({
-    widgets = [
+    widgets = concat([
       {
         type   = "text"
         x      = 0
@@ -694,6 +842,6 @@ resource "aws_cloudwatch_dashboard" "ecs" {
           query  = "SOURCE '${aws_cloudwatch_log_group.app.name}' | fields @timestamp, RequestId, ServiceId, Intent, ResponseSource, Confidence, LatencyMs, TotalTokens, EstimatedCostUsd, Explainability.selected_service_reason, Explainability.selected_intent_reason | filter EventType = 'chatbot_observability' | sort @timestamp desc | limit 50"
         }
       }
-    ]
+    ], local.support_resource_dashboard_widgets)
   })
 }

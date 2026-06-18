@@ -21,6 +21,65 @@ resource "aws_vpc" "this" {
   })
 }
 
+resource "aws_cloudwatch_log_group" "vpc_flow" {
+  count             = var.enable_vpc_flow_logs ? 1 : 0
+  name              = "/vpc-flow-logs/${var.name}"
+  retention_in_days = var.vpc_flow_log_retention_days
+  tags              = local.common_tags
+}
+
+resource "aws_iam_role" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+  name  = "${var.name}-vpc-flow-logs"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "vpc_flow_logs" {
+  count = var.enable_vpc_flow_logs ? 1 : 0
+  name  = "${var.name}-vpc-flow-logs"
+  role  = aws_iam_role.vpc_flow_logs[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams"
+        ]
+        Resource = "${aws_cloudwatch_log_group.vpc_flow[0].arn}:*"
+      }
+    ]
+  })
+}
+
+resource "aws_flow_log" "this" {
+  count                = var.enable_vpc_flow_logs ? 1 : 0
+  iam_role_arn         = aws_iam_role.vpc_flow_logs[0].arn
+  log_destination      = aws_cloudwatch_log_group.vpc_flow[0].arn
+  log_destination_type = "cloud-watch-logs"
+  traffic_type         = "ALL"
+  vpc_id               = local.vpc_id
+  tags                 = local.common_tags
+}
+
 resource "aws_internet_gateway" "this" {
   count  = var.create_vpc ? 1 : 0
   vpc_id = aws_vpc.this[0].id
@@ -119,4 +178,3 @@ resource "aws_route_table_association" "private" {
   subnet_id      = aws_subnet.private[count.index].id
   route_table_id = aws_route_table.private[count.index].id
 }
-

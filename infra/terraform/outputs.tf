@@ -47,3 +47,13 @@ output "cloudwatch_dashboard_name" {
   description = "CloudWatch dashboard created for the ECS Fargate service pack."
   value       = aws_cloudwatch_dashboard.ecs.dashboard_name
 }
+
+output "application_log_group_name" {
+  description = "CloudWatch log group for application and chatbot EMF telemetry."
+  value       = aws_cloudwatch_log_group.app.name
+}
+
+output "vpc_flow_log_group_name" {
+  description = "CloudWatch log group for VPC Flow Logs when enabled."
+  value       = var.enable_vpc_flow_logs ? aws_cloudwatch_log_group.vpc_flow[0].name : null
+}

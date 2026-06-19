@@ -36,13 +36,17 @@ Captured signals:
 - Input tokens, output tokens, total tokens, and estimated request cost
 - Explainability reasons for service selection and intent selection
 - Request id and message hash for evidence without storing raw prompts
+- Percentile latency, SLO status, error-budget remaining, and alert summaries
+- Durable event history through local SQLite or DynamoDB in ECS/Fargate production
 
-The app also exposes an in-memory demo view:
+The app also exposes telemetry APIs for the dashboard:
 
 ```text
 GET /api/observability/summary
 GET /api/observability/recent
 GET /api/observability/daily
+GET /api/observability/alerts
+GET /api/observability/events/{request_id}
 ```
 
 The separate dashboard is available at:
@@ -52,6 +56,8 @@ GET /dashboard
 ```
 
 The observability APIs accept `service_id` so the dashboard can show only ECS, only VPC, only S3, or any other selected service pack. The daily endpoint also accepts `days` for day-wise graphs.
+
+Local development stores events in `app/data/telemetry_events.db`, which is ignored by Git. ECS/Fargate production uses a Terraform-managed DynamoDB table by default so dashboard history survives task restarts.
 
 Terraform adds CloudWatch dashboard widgets for chatbot request volume, errors, latency, token usage, estimated cost, requests by service, requests by intent, and explainability evidence. MCP can be added later as a natural-language query layer over CloudWatch Logs Insights, CloudWatch Metrics, and S3/Athena evidence; it should not replace the telemetry pipeline.
 
@@ -145,6 +151,7 @@ The next stage is deployable through Terraform and a PowerShell helper. Terrafor
 - Private ECS/Fargate task subnets
 - Optional NAT gateway for private task egress
 - Optional VPC Flow Logs for network observability and security evidence
+- DynamoDB table for durable chatbot telemetry history
 - ECS cluster, task definition, service, ALB, target group
 - CloudWatch log group, alarms, and dashboard
 - Chatbot observability metrics, explainability log views, token/cost widgets, and governance alarms
@@ -191,6 +198,8 @@ By default, the ALB is placed in public subnets and ECS/Fargate tasks are placed
 - `GET /api/observability/summary`
 - `GET /api/observability/recent`
 - `GET /api/observability/daily`
+- `GET /api/observability/alerts`
+- `GET /api/observability/events/{request_id}`
 - `GET /dashboard`
 - `POST /api/chat`
 

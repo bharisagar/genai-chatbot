@@ -8,11 +8,17 @@ const metricRequestsHint = document.querySelector("#metricRequestsHint");
 const metricSuccessRate = document.querySelector("#metricSuccessRate");
 const metricSuccessHint = document.querySelector("#metricSuccessHint");
 const metricLatency = document.querySelector("#metricLatency");
+const metricP95 = document.querySelector("#metricP95");
+const metricP95Hint = document.querySelector("#metricP95Hint");
 const metricTokens = document.querySelector("#metricTokens");
 const metricCost = document.querySelector("#metricCost");
+const metricSlo = document.querySelector("#metricSlo");
+const metricBudget = document.querySelector("#metricBudget");
 const serviceBreakdown = document.querySelector("#serviceBreakdown");
 const intentBreakdown = document.querySelector("#intentBreakdown");
 const evidenceTable = document.querySelector("#evidenceTable");
+const alertList = document.querySelector("#alertList");
+const eventDetail = document.querySelector("#eventDetail");
 const dailyChart = document.querySelector("#dailyChart");
 const chartContext = dailyChart.getContext("2d");
 
@@ -31,8 +37,12 @@ function selectedServiceName() {
 function queryParams(extra = {}) {
   const params = new URLSearchParams();
   const serviceId = selectedServiceId();
+  const days = dayRangeSelect.value;
   if (serviceId) {
     params.set("service_id", serviceId);
+  }
+  if (days) {
+    params.set("days", days);
   }
   Object.entries(extra).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
@@ -99,8 +109,14 @@ function renderSummary(summary) {
   metricSuccessRate.textContent = formatPercent(summary.success_rate);
   metricSuccessHint.textContent = `${formatNumber(summary.success_count)} successful`;
   metricLatency.textContent = `${summary.avg_latency_ms} ms`;
+  metricP95.textContent = `${summary.latency_p95_ms} ms`;
+  metricP95Hint.textContent = `Target ${summary.slo?.latency_p95_target_ms || 1000} ms`;
   metricTokens.textContent = formatNumber(summary.total_tokens);
   metricCost.textContent = formatMoney(summary.estimated_cost_usd);
+  const sloStatus = summary.slo?.status || "no_data";
+  metricSlo.textContent = sloStatus.replace("_", " ");
+  metricSlo.className = `slo-${sloStatus.replace("_", "-")}`;
+  metricBudget.textContent = `Error budget ${formatPercent(summary.slo?.error_budget_remaining || 0)}`;
   renderBreakdown(serviceBreakdown, summary.by_service, "No service data yet");
   renderBreakdown(intentBreakdown, summary.by_intent, "No intent data yet");
 }
@@ -137,6 +153,7 @@ function renderEvidence(events) {
   events.forEach((event) => {
     const row = document.createElement("div");
     row.className = "evidence-row";
+    row.dataset.requestId = event.request_id;
     const reason = event.explainability?.selected_service_reason || "No selection reason captured.";
     const intent = event.explainability?.selected_intent_reason || "No intent reason captured.";
     row.innerHTML = `
@@ -156,9 +173,64 @@ function renderEvidence(events) {
         <span>Tokens</span>
         <strong>${formatNumber(event.total_tokens)}</strong>
       </div>
+      <div>
+        <span>Inspect</span>
+        <button class="inspect-button" type="button">Open</button>
+      </div>
     `;
+    row.addEventListener("click", () => inspectEvent(event.request_id));
     evidenceTable.appendChild(row);
   });
+}
+
+function renderAlerts(alerts) {
+  alertList.innerHTML = "";
+  alerts.forEach((alert) => {
+    const item = document.createElement("div");
+    item.className = `alert-item ${alert.severity}`;
+    item.innerHTML = `
+      <strong>${alert.title}</strong>
+      <p>${alert.detail}</p>
+    `;
+    alertList.appendChild(item);
+  });
+}
+
+function renderEventDetail(event) {
+  const context = event.explainability?.approved_context || {};
+  const sections = context.dashboard_sections || [];
+  eventDetail.innerHTML = `
+    <div class="detail-block">
+      <strong>${event.request_id}</strong>
+      <p>${event.service_name} | ${event.intent} | ${event.response_source}</p>
+    </div>
+    <div class="detail-block">
+      <strong>Decision path</strong>
+      <p>${event.explainability?.selected_service_reason || "No service reason captured."}</p>
+      <p>${event.explainability?.selected_intent_reason || "No intent reason captured."}</p>
+      <p>${event.explainability?.action_taken || "No action captured."}</p>
+    </div>
+    <div class="detail-block">
+      <strong>Operational signals</strong>
+      <p>Latency ${event.latency_ms} ms | Tokens ${formatNumber(event.total_tokens)} | Cost ${formatMoney(event.estimated_cost_usd)}</p>
+      <p>Message hash ${event.message_hash} | Confidence ${event.confidence}</p>
+    </div>
+    <div class="detail-block">
+      <strong>Approved context</strong>
+      <ul class="detail-list">
+        ${sections.map((section) => `<li>${section}</li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+async function inspectEvent(requestId) {
+  const response = await fetch(`/api/observability/events/${requestId}`);
+  if (!response.ok) {
+    eventDetail.innerHTML = '<div class="empty-state">Event detail is no longer available.</div>';
+    return;
+  }
+  renderEventDetail(await response.json());
 }
 
 function resizeCanvas() {
@@ -229,20 +301,21 @@ function drawDailyChart(rows) {
 
 async function refreshDashboard() {
   updateTitle();
-  const days = dayRangeSelect.value;
-  const [summaryResponse, dailyResponse, recentResponse] = await Promise.all([
+  const [summaryResponse, dailyResponse, recentResponse, alertsResponse] = await Promise.all([
     fetch(`/api/observability/summary${queryParams()}`),
-    fetch(`/api/observability/daily${queryParams({ days })}`),
-    fetch(`/api/observability/recent${queryParams({ limit: 8 })}`)
+    fetch(`/api/observability/daily${queryParams()}`),
+    fetch(`/api/observability/recent${queryParams({ limit: 8 })}`),
+    fetch(`/api/observability/alerts${queryParams()}`)
   ]);
 
-  if (!summaryResponse.ok || !dailyResponse.ok || !recentResponse.ok) {
+  if (!summaryResponse.ok || !dailyResponse.ok || !recentResponse.ok || !alertsResponse.ok) {
     throw new Error("Dashboard data unavailable");
   }
 
   renderSummary(await summaryResponse.json());
   drawDailyChart(await dailyResponse.json());
   renderEvidence(await recentResponse.json());
+  renderAlerts(await alertsResponse.json());
 }
 
 async function boot() {

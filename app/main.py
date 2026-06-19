@@ -84,18 +84,35 @@ def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.get("/api/observability/summary")
-def observability_summary(service_id: str | None = None) -> dict:
-    return telemetry_store.summary(service_id)
+def observability_summary(service_id: str | None = None, days: int | None = 7) -> dict:
+    return telemetry_store.summary(service_id, days)
 
 
 @app.get("/api/observability/recent")
-def recent_observability_events(limit: int = 50, service_id: str | None = None) -> list[dict]:
-    return telemetry_store.recent(limit, service_id)
+def recent_observability_events(
+    limit: int = 50,
+    service_id: str | None = None,
+    days: int | None = 7,
+) -> list[dict]:
+    return telemetry_store.recent(limit, service_id, days)
 
 
 @app.get("/api/observability/daily")
 def daily_observability(service_id: str | None = None, days: int = 7) -> list[dict]:
     return telemetry_store.daily(service_id, days)
+
+
+@app.get("/api/observability/alerts")
+def observability_alerts(service_id: str | None = None, days: int = 7) -> list[dict]:
+    return telemetry_store.alerts(service_id, days)
+
+
+@app.get("/api/observability/events/{request_id}")
+def observability_event(request_id: str) -> dict:
+    event = telemetry_store.get_event(request_id)
+    if not event:
+        raise HTTPException(status_code=404, detail=f"Unknown telemetry event: {request_id}")
+    return event
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

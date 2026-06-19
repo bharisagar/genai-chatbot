@@ -151,6 +151,45 @@ resource "aws_cloudwatch_log_group" "app" {
   tags              = local.common_tags
 }
 
+resource "aws_dynamodb_table" "telemetry" {
+  count        = var.enable_telemetry_table ? 1 : 0
+  name         = "${var.name}-telemetry"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "request_id"
+
+  attribute {
+    name = "request_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "service_id"
+    type = "S"
+  }
+
+  attribute {
+    name = "timestamp_epoch_ms"
+    type = "N"
+  }
+
+  global_secondary_index {
+    name            = "service-time-index"
+    hash_key        = "service_id"
+    range_key       = "timestamp_epoch_ms"
+    projection_type = "ALL"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  server_side_encryption {
+    enabled = true
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_ecs_cluster" "this" {
   name = var.name
 
@@ -313,6 +352,31 @@ resource "aws_iam_role_policy" "bedrock" {
   })
 }
 
+resource "aws_iam_role_policy" "telemetry" {
+  count = var.enable_telemetry_table ? 1 : 0
+  name  = "${var.name}-telemetry"
+  role  = aws_iam_role.task.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:Scan",
+          "dynamodb:Query"
+        ]
+        Resource = [
+          aws_dynamodb_table.telemetry[0].arn,
+          "${aws_dynamodb_table.telemetry[0].arn}/index/*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_ecs_task_definition" "app" {
   family                   = var.name
   network_mode             = "awsvpc"
@@ -357,6 +421,14 @@ resource "aws_ecs_task_definition" "app" {
         {
           name  = "BEDROCK_OUTPUT_PRICE_PER_1K"
           value = tostring(var.bedrock_output_price_per_1k)
+        },
+        {
+          name  = "TELEMETRY_BACKEND"
+          value = var.enable_telemetry_table ? "dynamodb" : "sqlite"
+        },
+        {
+          name  = "TELEMETRY_TABLE_NAME"
+          value = var.enable_telemetry_table ? aws_dynamodb_table.telemetry[0].name : ""
         }
       ]
       logConfiguration = {

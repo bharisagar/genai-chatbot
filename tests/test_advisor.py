@@ -1,5 +1,9 @@
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from app.advisor import AdvisorEngine
 from app.models import ChatRequest
+from app.telemetry import TelemetryStore
 
 
 def test_ecs_pack_is_loaded() -> None:
@@ -134,3 +138,26 @@ def test_response_includes_observability_and_explainability_fields() -> None:
     assert "selected_service_reason" in response.explainability
     assert "selected_intent_reason" in response.explainability
     assert response.explainability["fallback_used"] is False
+
+
+def test_telemetry_store_calculates_slo_and_daily_windows() -> None:
+    with TemporaryDirectory() as directory:
+        store = TelemetryStore(db_path=Path(directory) / "telemetry.db")
+        advisor = AdvisorEngine()
+        request = ChatRequest(message="ECS dashboard alarms", service_id="ecs-fargate", use_bedrock=False)
+        response = advisor.answer(request)
+
+        store.record_success("test-request-id", request, response, 25.0)
+
+        summary = store.summary("ecs-fargate", days=7)
+        daily = store.daily("ecs-fargate", days=7)
+        alerts = store.alerts("ecs-fargate", days=7)
+        event = store.get_event("test-request-id")
+
+        assert summary["request_count"] == 1
+        assert summary["latency_p95_ms"] >= 0
+        assert summary["slo"]["status"] in {"healthy", "at_risk", "no_data"}
+        assert len(daily) == 7
+        assert alerts
+        assert event is not None
+        assert event["service_id"] == "ecs-fargate"

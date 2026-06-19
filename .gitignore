@@ -3,10 +3,11 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+app/data/*.db
+app/data/*.db-*
 
 .terraform/
 terraform.tfstate
 terraform.tfstate.*
 tfplan
 crash.log
-

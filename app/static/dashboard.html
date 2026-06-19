@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AIOps Lens Observability Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard.css">
+    <link rel="stylesheet" href="/static/dashboard.css?v=telemetry-platform-1">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -75,6 +75,11 @@
             <small>End-to-end API time</small>
           </article>
           <article>
+            <span>p95 latency</span>
+            <strong id="metricP95">0 ms</strong>
+            <small id="metricP95Hint">Target 1000 ms</small>
+          </article>
+          <article>
             <span>Tokens</span>
             <strong id="metricTokens">0</strong>
             <small>Estimated locally</small>
@@ -83,6 +88,11 @@
             <span>Cost</span>
             <strong id="metricCost">$0.0000</strong>
             <small>Bedrock only when enabled</small>
+          </article>
+          <article>
+            <span>SLO status</span>
+            <strong id="metricSlo">No data</strong>
+            <small id="metricBudget">Error budget 100%</small>
           </article>
         </section>
 
@@ -136,6 +146,16 @@
             </div>
           </article>
 
+          <article class="panel alert-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Reliability guardrails</p>
+                <h3>Active telemetry alerts</h3>
+              </div>
+            </div>
+            <div id="alertList" class="alert-list"></div>
+          </article>
+
           <article class="panel evidence-panel">
             <div class="panel-heading">
               <div>
@@ -145,10 +165,22 @@
             </div>
             <div class="evidence-table" id="evidenceTable"></div>
           </article>
+
+          <article class="panel detail-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Request drill-down</p>
+                <h3>Selected event</h3>
+              </div>
+            </div>
+            <div id="eventDetail" class="event-detail">
+              <div class="empty-state">Select an evidence row to inspect the request id, decision path, token usage, and approved context.</div>
+            </div>
+          </article>
         </section>
       </section>
     </main>
 
-    <script src="/static/dashboard.js"></script>
+    <script src="/static/dashboard.js?v=telemetry-platform-1"></script>
   </body>
 </html>

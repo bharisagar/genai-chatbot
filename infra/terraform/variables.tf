@@ -130,6 +130,12 @@ variable "enable_bedrock" {
   default     = false
 }
 
+variable "enable_telemetry_table" {
+  description = "Create a DynamoDB table for durable chatbot telemetry in production."
+  type        = bool
+  default     = true
+}
+
 variable "bedrock_input_price_per_1k" {
   description = "Optional Bedrock input-token price per 1,000 tokens for estimated request-cost metrics. Keep 0 unless the chosen model price has been confirmed."
   type        = number

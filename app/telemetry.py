@@ -2,9 +2,11 @@ import hashlib
 import json
 import math
 import os
+import sqlite3
 import time
 from collections import deque
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from app.models import ChatRequest, ChatResponse
@@ -12,6 +14,11 @@ from app.models import ChatRequest, ChatResponse
 
 METRIC_NAMESPACE = "AIOpsLens/Chatbot"
 APPLICATION_NAME = os.getenv("APPLICATION_NAME", "aiops-lens-advisor")
+SLO_SUCCESS_TARGET = float(os.getenv("SLO_SUCCESS_TARGET", "0.99"))
+SLO_LATENCY_P95_TARGET_MS = float(os.getenv("SLO_LATENCY_P95_TARGET_MS", "1000"))
+DEFAULT_DB_PATH = Path(__file__).resolve().parent / "data" / "telemetry_events.db"
+TELEMETRY_BACKEND = os.getenv("TELEMETRY_BACKEND", "sqlite").lower()
+TELEMETRY_TABLE_NAME = os.getenv("TELEMETRY_TABLE_NAME", "")
 
 
 def estimate_tokens(text: str) -> int:
@@ -21,8 +28,11 @@ def estimate_tokens(text: str) -> int:
 
 
 class TelemetryStore:
-    def __init__(self, max_events: int = 200) -> None:
+    def __init__(self, max_events: int = 200, db_path: Path | None = None) -> None:
         self.events: deque[dict[str, Any]] = deque(maxlen=max_events)
+        self.db_path = db_path or Path(os.getenv("TELEMETRY_DB_PATH", str(DEFAULT_DB_PATH)))
+        if TELEMETRY_BACKEND != "dynamodb":
+            self._init_db()
 
     def record_success(
         self,
@@ -86,19 +96,33 @@ class TelemetryStore:
         )
         self._emit(event)
 
-    def recent(self, limit: int = 50, service_id: str | None = None) -> list[dict[str, Any]]:
+    def recent(
+        self,
+        limit: int = 50,
+        service_id: str | None = None,
+        days: int | None = None,
+    ) -> list[dict[str, Any]]:
         limit = max(1, min(limit, self.events.maxlen or 200))
-        return self._filter_events(service_id)[-limit:]
+        return self._filter_events(service_id, days)[-limit:]
 
-    def summary(self, service_id: str | None = None) -> dict[str, Any]:
-        events = self._filter_events(service_id)
+    def summary(self, service_id: str | None = None, days: int | None = None) -> dict[str, Any]:
+        events = self._filter_events(service_id, days)
         request_count = len(events)
         success_count = sum(1 for event in events if event["success"])
         error_count = request_count - success_count
         total_tokens = sum(int(event.get("total_tokens", 0)) for event in events)
         total_cost = sum(float(event.get("estimated_cost_usd", 0.0)) for event in events)
+        fallback_count = sum(1 for event in events if event.get("fallback_used"))
+        low_confidence_count = sum(1 for event in events if float(event.get("confidence", 0.0)) < 0.8)
         latencies = [float(event.get("latency_ms", 0.0)) for event in events]
         avg_latency = round(sum(latencies) / len(latencies), 2) if latencies else 0.0
+        p50_latency = percentile(latencies, 50)
+        p95_latency = percentile(latencies, 95)
+        p99_latency = percentile(latencies, 99)
+        success_rate = round(success_count / request_count, 4) if request_count else 0.0
+        error_rate = (error_count / request_count) if request_count else 0.0
+        error_budget_remaining = error_budget(SLO_SUCCESS_TARGET, error_rate)
+        slo_status = slo_state(success_rate, p95_latency)
 
         by_service: dict[str, int] = {}
         by_intent: dict[str, int] = {}
@@ -108,13 +132,25 @@ class TelemetryStore:
 
         return {
             "service_id": service_id,
+            "window_days": days,
             "request_count": request_count,
             "success_count": success_count,
             "error_count": error_count,
-            "success_rate": round(success_count / request_count, 4) if request_count else 0.0,
+            "success_rate": success_rate,
             "avg_latency_ms": avg_latency,
+            "latency_p50_ms": p50_latency,
+            "latency_p95_ms": p95_latency,
+            "latency_p99_ms": p99_latency,
             "total_tokens": total_tokens,
             "estimated_cost_usd": round(total_cost, 8),
+            "fallback_count": fallback_count,
+            "low_confidence_count": low_confidence_count,
+            "slo": {
+                "status": slo_status,
+                "success_target": SLO_SUCCESS_TARGET,
+                "latency_p95_target_ms": SLO_LATENCY_P95_TARGET_MS,
+                "error_budget_remaining": error_budget_remaining,
+            },
             "by_service": by_service,
             "by_intent": by_intent,
         }
@@ -137,7 +173,7 @@ class TelemetryStore:
                 "_latencies": [],
             }
 
-        for event in self._filter_events(service_id):
+        for event in self._filter_events(service_id, days):
             day = datetime.fromtimestamp(event["timestamp_epoch_ms"] / 1000).date().isoformat()
             if day not in buckets:
                 continue
@@ -153,9 +189,72 @@ class TelemetryStore:
         for bucket in buckets.values():
             latencies = bucket.pop("_latencies")
             bucket["avg_latency_ms"] = round(sum(latencies) / len(latencies), 2) if latencies else 0.0
+            bucket["latency_p95_ms"] = percentile(latencies, 95)
             bucket["estimated_cost_usd"] = round(bucket["estimated_cost_usd"], 8)
             results.append(bucket)
         return results
+
+    def alerts(self, service_id: str | None = None, days: int | None = 7) -> list[dict[str, Any]]:
+        summary = self.summary(service_id, days)
+        alerts: list[dict[str, Any]] = []
+        if summary["request_count"] == 0:
+            return [
+                {
+                    "severity": "info",
+                    "title": "No telemetry captured",
+                    "detail": "No requests match the selected service and time window.",
+                }
+            ]
+        if summary["error_count"] > 0:
+            alerts.append(
+                {
+                    "severity": "critical",
+                    "title": "Request errors detected",
+                    "detail": f"{summary['error_count']} failed requests in the selected window.",
+                }
+            )
+        if summary["success_rate"] < SLO_SUCCESS_TARGET:
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "title": "Success SLO at risk",
+                    "detail": f"Success rate is {round(summary['success_rate'] * 100, 2)}%, below the {round(SLO_SUCCESS_TARGET * 100, 2)}% target.",
+                }
+            )
+        if summary["latency_p95_ms"] > SLO_LATENCY_P95_TARGET_MS:
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "title": "Latency SLO at risk",
+                    "detail": f"p95 latency is {summary['latency_p95_ms']} ms, above the {SLO_LATENCY_P95_TARGET_MS} ms target.",
+                }
+            )
+        if summary["low_confidence_count"] > 0:
+            alerts.append(
+                {
+                    "severity": "notice",
+                    "title": "Low-confidence responses",
+                    "detail": f"{summary['low_confidence_count']} responses were below the confidence threshold.",
+                }
+            )
+        if not alerts:
+            alerts.append(
+                {
+                    "severity": "healthy",
+                    "title": "Telemetry healthy",
+                    "detail": "No SLO, latency, confidence, or error alerts in this window.",
+                }
+            )
+        return alerts
+
+    def get_event(self, request_id: str) -> dict[str, Any] | None:
+        for event in self._load_events_from_db():
+            if event.get("request_id") == request_id:
+                return event
+        for event in self.events:
+            if event.get("request_id") == request_id:
+                return event
+        return None
 
     def _base_event(self, request_id: str, request: ChatRequest, latency_ms: float) -> dict[str, Any]:
         return {
@@ -170,15 +269,124 @@ class TelemetryStore:
             "requested_bedrock": request.use_bedrock,
         }
 
-    def _filter_events(self, service_id: str | None = None) -> list[dict[str, Any]]:
-        events = list(self.events)
+    def _filter_events(
+        self,
+        service_id: str | None = None,
+        days: int | None = None,
+    ) -> list[dict[str, Any]]:
+        events = self._load_events_from_db()
+        if not events:
+            events = list(self.events)
+        if days:
+            cutoff_ms = int((time.time() - (max(1, min(days, 90)) * 86400)) * 1000)
+            events = [event for event in events if int(event.get("timestamp_epoch_ms", 0)) >= cutoff_ms]
         if not service_id:
             return events
         return [event for event in events if event.get("service_id") == service_id]
 
     def _emit(self, event: dict[str, Any]) -> None:
         self.events.append(event)
+        self._persist_event(event)
         print(json.dumps(self._to_emf(event), separators=(",", ":")), flush=True)
+
+    def _init_db(self) -> None:
+        try:
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self.db_path) as connection:
+                connection.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS telemetry_events (
+                        request_id TEXT PRIMARY KEY,
+                        timestamp_epoch_ms INTEGER NOT NULL,
+                        service_id TEXT NOT NULL,
+                        intent TEXT NOT NULL,
+                        success INTEGER NOT NULL,
+                        event_json TEXT NOT NULL
+                    )
+                    """
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_telemetry_service_time ON telemetry_events(service_id, timestamp_epoch_ms)"
+                )
+                connection.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_telemetry_time ON telemetry_events(timestamp_epoch_ms)"
+                )
+        except sqlite3.Error:
+            pass
+
+    def _persist_event(self, event: dict[str, Any]) -> None:
+        if TELEMETRY_BACKEND == "dynamodb" and TELEMETRY_TABLE_NAME:
+            self._persist_event_to_dynamodb(event)
+            return
+
+        try:
+            with sqlite3.connect(self.db_path) as connection:
+                connection.execute(
+                    """
+                    INSERT OR REPLACE INTO telemetry_events
+                    (request_id, timestamp_epoch_ms, service_id, intent, success, event_json)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        event["request_id"],
+                        int(event["timestamp_epoch_ms"]),
+                        event["service_id"],
+                        event["intent"],
+                        1 if event["success"] else 0,
+                        json.dumps(event, separators=(",", ":")),
+                    ),
+                )
+        except sqlite3.Error:
+            pass
+
+    def _load_events_from_db(self) -> list[dict[str, Any]]:
+        if TELEMETRY_BACKEND == "dynamodb" and TELEMETRY_TABLE_NAME:
+            return self._load_events_from_dynamodb()
+
+        try:
+            with sqlite3.connect(self.db_path) as connection:
+                rows = connection.execute(
+                    "SELECT event_json FROM telemetry_events ORDER BY timestamp_epoch_ms ASC"
+                ).fetchall()
+            return [json.loads(row[0]) for row in rows]
+        except (sqlite3.Error, json.JSONDecodeError):
+            return []
+
+    def _persist_event_to_dynamodb(self, event: dict[str, Any]) -> None:
+        try:
+            import boto3
+
+            table = boto3.resource("dynamodb").Table(TELEMETRY_TABLE_NAME)
+            table.put_item(
+                Item={
+                    "request_id": event["request_id"],
+                    "timestamp_epoch_ms": int(event["timestamp_epoch_ms"]),
+                    "service_id": event["service_id"],
+                    "intent": event["intent"],
+                    "success": bool(event["success"]),
+                    "event_json": json.dumps(event, separators=(",", ":")),
+                }
+            )
+        except Exception:
+            pass
+
+    def _load_events_from_dynamodb(self) -> list[dict[str, Any]]:
+        try:
+            import boto3
+
+            table = boto3.resource("dynamodb").Table(TELEMETRY_TABLE_NAME)
+            response = table.scan(ProjectionExpression="event_json")
+            rows = response.get("Items", [])
+            while "LastEvaluatedKey" in response:
+                response = table.scan(
+                    ProjectionExpression="event_json",
+                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                )
+                rows.extend(response.get("Items", []))
+            events = [json.loads(row["event_json"]) for row in rows]
+            return sorted(events, key=lambda event: int(event.get("timestamp_epoch_ms", 0)))
+        except Exception:
+            return []
 
     def _to_emf(self, event: dict[str, Any]) -> dict[str, Any]:
         success_count = 1 if event["success"] else 0
@@ -239,3 +447,32 @@ class TelemetryStore:
 
 
 telemetry_store = TelemetryStore()
+
+
+def percentile(values: list[float], target: int) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return round(ordered[0], 2)
+    rank = (target / 100) * (len(ordered) - 1)
+    low = math.floor(rank)
+    high = math.ceil(rank)
+    if low == high:
+        return round(ordered[int(rank)], 2)
+    weighted = ordered[low] + (ordered[high] - ordered[low]) * (rank - low)
+    return round(weighted, 2)
+
+
+def error_budget(success_target: float, error_rate: float) -> float:
+    allowed_error_rate = max(0.0001, 1 - success_target)
+    remaining = 1 - (error_rate / allowed_error_rate)
+    return round(max(0.0, min(1.0, remaining)), 4)
+
+
+def slo_state(success_rate: float, latency_p95_ms: float) -> str:
+    if success_rate == 0 and latency_p95_ms == 0:
+        return "no_data"
+    if success_rate < SLO_SUCCESS_TARGET or latency_p95_ms > SLO_LATENCY_P95_TARGET_MS:
+        return "at_risk"
+    return "healthy"

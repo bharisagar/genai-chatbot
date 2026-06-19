@@ -57,3 +57,8 @@ output "vpc_flow_log_group_name" {
   description = "CloudWatch log group for VPC Flow Logs when enabled."
   value       = var.enable_vpc_flow_logs ? aws_cloudwatch_log_group.vpc_flow[0].name : null
 }
+
+output "telemetry_table_name" {
+  description = "DynamoDB table used for durable chatbot telemetry when enabled."
+  value       = var.enable_telemetry_table ? aws_dynamodb_table.telemetry[0].name : null
+}

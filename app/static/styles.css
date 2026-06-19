@@ -168,10 +168,26 @@ p {
   background: rgba(255, 255, 255, 0.10);
 }
 
+.dashboard-link {
+  display: block;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  color: #f8fafc;
+  text-align: center;
+  text-decoration: none;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dashboard-link:hover {
+  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.10);
+}
+
 .workspace {
   min-width: 0;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   gap: 18px;
   padding: 26px;
 }
@@ -230,34 +246,6 @@ p {
 .lens-map strong {
   display: block;
   font-size: 15px;
-}
-
-.observability-strip {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.observability-strip div {
-  min-height: 82px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel);
-  padding: 14px;
-}
-
-.observability-strip span {
-  display: block;
-  color: var(--muted);
-  font-size: 13px;
-  margin-bottom: 8px;
-}
-
-.observability-strip strong {
-  display: block;
-  font-size: 21px;
-  line-height: 1.1;
-  overflow-wrap: anywhere;
 }
 
 .chat-panel {
@@ -368,9 +356,6 @@ p {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .observability-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 560px) {
@@ -389,10 +374,6 @@ p {
   }
 
   .lens-map {
-    grid-template-columns: 1fr;
-  }
-
-  .observability-strip {
     grid-template-columns: 1fr;
   }
 

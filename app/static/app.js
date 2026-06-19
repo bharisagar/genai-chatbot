@@ -7,11 +7,6 @@ const bedrockToggle = document.querySelector("#bedrockToggle");
 const serviceSelect = document.querySelector("#serviceSelect");
 const activePackName = document.querySelector("#activePackName");
 const activePackSummary = document.querySelector("#activePackSummary");
-const obsRequests = document.querySelector("#obsRequests");
-const obsSuccessRate = document.querySelector("#obsSuccessRate");
-const obsLatency = document.querySelector("#obsLatency");
-const obsTokens = document.querySelector("#obsTokens");
-const obsCost = document.querySelector("#obsCost");
 
 let servicePacks = [];
 
@@ -97,27 +92,6 @@ async function loadServicePacks() {
   }
 }
 
-async function refreshObservability() {
-  try {
-    const response = await fetch("/api/observability/summary");
-    if (!response.ok) {
-      throw new Error("Observability summary unavailable");
-    }
-    const summary = await response.json();
-    obsRequests.textContent = summary.request_count.toString();
-    obsSuccessRate.textContent = `${Math.round(summary.success_rate * 100)}%`;
-    obsLatency.textContent = `${summary.avg_latency_ms} ms`;
-    obsTokens.textContent = summary.total_tokens.toLocaleString();
-    obsCost.textContent = `$${Number(summary.estimated_cost_usd).toFixed(4)}`;
-  } catch (error) {
-    obsRequests.textContent = "-";
-    obsSuccessRate.textContent = "-";
-    obsLatency.textContent = "-";
-    obsTokens.textContent = "-";
-    obsCost.textContent = "-";
-  }
-}
-
 async function sendMessage(text) {
   const trimmed = text.trim();
   if (!trimmed) {
@@ -163,10 +137,8 @@ async function sendMessage(text) {
       reason
     ].join(" | ");
     appendMessage("assistant", payload.answer, meta);
-    await refreshObservability();
   } catch (error) {
     appendMessage("system", "The advisor API did not respond. Check the backend logs and try again.");
-    await refreshObservability();
   } finally {
     form.querySelector("button").disabled = false;
     input.focus();
@@ -196,5 +168,3 @@ input.addEventListener("keydown", (event) => {
 checkHealth();
 checkRuntime();
 loadServicePacks();
-refreshObservability();
-setInterval(refreshObservability, 30000);

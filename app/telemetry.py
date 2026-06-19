@@ -4,6 +4,7 @@ import math
 import os
 import time
 from collections import deque
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.models import ChatRequest, ChatResponse
@@ -85,12 +86,12 @@ class TelemetryStore:
         )
         self._emit(event)
 
-    def recent(self, limit: int = 50) -> list[dict[str, Any]]:
+    def recent(self, limit: int = 50, service_id: str | None = None) -> list[dict[str, Any]]:
         limit = max(1, min(limit, self.events.maxlen or 200))
-        return list(self.events)[-limit:]
+        return self._filter_events(service_id)[-limit:]
 
-    def summary(self) -> dict[str, Any]:
-        events = list(self.events)
+    def summary(self, service_id: str | None = None) -> dict[str, Any]:
+        events = self._filter_events(service_id)
         request_count = len(events)
         success_count = sum(1 for event in events if event["success"])
         error_count = request_count - success_count
@@ -106,6 +107,7 @@ class TelemetryStore:
             by_intent[event["intent"]] = by_intent.get(event["intent"], 0) + 1
 
         return {
+            "service_id": service_id,
             "request_count": request_count,
             "success_count": success_count,
             "error_count": error_count,
@@ -116,6 +118,44 @@ class TelemetryStore:
             "by_service": by_service,
             "by_intent": by_intent,
         }
+
+    def daily(self, service_id: str | None = None, days: int = 7) -> list[dict[str, Any]]:
+        days = max(1, min(days, 30))
+        today = datetime.now().date()
+        buckets: dict[str, dict[str, Any]] = {}
+        for offset in range(days - 1, -1, -1):
+            day = today - timedelta(days=offset)
+            key = day.isoformat()
+            buckets[key] = {
+                "date": key,
+                "request_count": 0,
+                "success_count": 0,
+                "error_count": 0,
+                "total_tokens": 0,
+                "estimated_cost_usd": 0.0,
+                "avg_latency_ms": 0.0,
+                "_latencies": [],
+            }
+
+        for event in self._filter_events(service_id):
+            day = datetime.fromtimestamp(event["timestamp_epoch_ms"] / 1000).date().isoformat()
+            if day not in buckets:
+                continue
+            bucket = buckets[day]
+            bucket["request_count"] += 1
+            bucket["success_count"] += 1 if event["success"] else 0
+            bucket["error_count"] += 0 if event["success"] else 1
+            bucket["total_tokens"] += int(event.get("total_tokens", 0))
+            bucket["estimated_cost_usd"] += float(event.get("estimated_cost_usd", 0.0))
+            bucket["_latencies"].append(float(event.get("latency_ms", 0.0)))
+
+        results = []
+        for bucket in buckets.values():
+            latencies = bucket.pop("_latencies")
+            bucket["avg_latency_ms"] = round(sum(latencies) / len(latencies), 2) if latencies else 0.0
+            bucket["estimated_cost_usd"] = round(bucket["estimated_cost_usd"], 8)
+            results.append(bucket)
+        return results
 
     def _base_event(self, request_id: str, request: ChatRequest, latency_ms: float) -> dict[str, Any]:
         return {
@@ -129,6 +169,12 @@ class TelemetryStore:
             "requested_service_id": request.service_id,
             "requested_bedrock": request.use_bedrock,
         }
+
+    def _filter_events(self, service_id: str | None = None) -> list[dict[str, Any]]:
+        events = list(self.events)
+        if not service_id:
+            return events
+        return [event for event in events if event.get("service_id") == service_id]
 
     def _emit(self, event: dict[str, Any]) -> None:
         self.events.append(event)

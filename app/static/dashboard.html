@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AIOps Lens Observability Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <aside class="dashboard-rail">
+        <div class="brand-lockup">
+          <div class="brand-mark">AL</div>
+          <div>
+            <h1>AIOps Lens</h1>
+            <p>Observability dashboard</p>
+          </div>
+        </div>
+
+        <section class="control-panel">
+          <label for="dashboardServiceSelect">Monitoring target</label>
+          <select id="dashboardServiceSelect">
+            <option value="">All services</option>
+          </select>
+        </section>
+
+        <section class="control-panel">
+          <label for="dayRangeSelect">Trend window</label>
+          <select id="dayRangeSelect">
+            <option value="7">Last 7 days</option>
+            <option value="14">Last 14 days</option>
+            <option value="30">Last 30 days</option>
+          </select>
+        </section>
+
+        <section class="resource-list" aria-label="Resource coverage">
+          <p class="rail-label">Covered resources</p>
+          <div class="resource-item active">Agent telemetry</div>
+          <div class="resource-item">ECS Fargate</div>
+          <div class="resource-item">ALB targets</div>
+          <div class="resource-item">VPC Flow Logs</div>
+          <div class="resource-item">NAT Gateway</div>
+          <div class="resource-item">CloudWatch Logs</div>
+          <div class="resource-item">ECR</div>
+          <div class="resource-item">Bedrock</div>
+        </section>
+
+        <a class="chat-link" href="/">Back to chatbot</a>
+      </aside>
+
+      <section class="dashboard-main">
+        <header class="dashboard-header">
+          <div>
+            <p class="eyebrow">Production monitoring</p>
+            <h2 id="dashboardTitle">All service observability</h2>
+            <p id="dashboardSubtitle">Request behavior, explainability evidence, token usage, cost, and AWS resource coverage.</p>
+          </div>
+          <div class="health-chip" id="dashboardHealth">Checking API</div>
+        </header>
+
+        <section class="kpi-grid" aria-label="Observability KPIs">
+          <article>
+            <span>Requests</span>
+            <strong id="metricRequests">0</strong>
+            <small id="metricRequestsHint">0 errors</small>
+          </article>
+          <article>
+            <span>Success rate</span>
+            <strong id="metricSuccessRate">0%</strong>
+            <small id="metricSuccessHint">0 successful</small>
+          </article>
+          <article>
+            <span>Avg latency</span>
+            <strong id="metricLatency">0 ms</strong>
+            <small>End-to-end API time</small>
+          </article>
+          <article>
+            <span>Tokens</span>
+            <strong id="metricTokens">0</strong>
+            <small>Estimated locally</small>
+          </article>
+          <article>
+            <span>Cost</span>
+            <strong id="metricCost">$0.0000</strong>
+            <small>Bedrock only when enabled</small>
+          </article>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel trend-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Day-wise trend</p>
+                <h3>Requests and errors</h3>
+              </div>
+              <div class="legend">
+                <span><i class="legend-request"></i>Requests</span>
+                <span><i class="legend-error"></i>Errors</span>
+              </div>
+            </div>
+            <canvas id="dailyChart" width="920" height="300" aria-label="Day-wise request chart"></canvas>
+          </article>
+
+          <article class="panel split-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Service mix</p>
+                <h3>Requests by service</h3>
+              </div>
+            </div>
+            <div id="serviceBreakdown" class="breakdown-list"></div>
+          </article>
+
+          <article class="panel split-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Intent mix</p>
+                <h3>Requests by intent</h3>
+              </div>
+            </div>
+            <div id="intentBreakdown" class="breakdown-list"></div>
+          </article>
+
+          <article class="panel resource-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">AWS resource layer</p>
+                <h3>Monitoring coverage</h3>
+              </div>
+            </div>
+            <div class="coverage-grid">
+              <div><span>Runtime</span><strong>ECS, Fargate, ALB</strong></div>
+              <div><span>Network</span><strong>VPC Flow Logs, NAT</strong></div>
+              <div><span>Evidence</span><strong>CloudWatch Logs, ECR</strong></div>
+              <div><span>AI usage</span><strong>Bedrock tokens, cost</strong></div>
+            </div>
+          </article>
+
+          <article class="panel evidence-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">Explainability evidence</p>
+                <h3>Recent agent decisions</h3>
+              </div>
+            </div>
+            <div class="evidence-table" id="evidenceTable"></div>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/dashboard.js"></script>
+  </body>
+</html>

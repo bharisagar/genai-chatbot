@@ -37,6 +37,11 @@ def root() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/dashboard", include_in_schema=False)
+def dashboard() -> FileResponse:
+    return FileResponse(STATIC_DIR / "dashboard.html")
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok", "service": "aws-aiops-lens-advisor"}
@@ -79,13 +84,18 @@ def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.get("/api/observability/summary")
-def observability_summary() -> dict:
-    return telemetry_store.summary()
+def observability_summary(service_id: str | None = None) -> dict:
+    return telemetry_store.summary(service_id)
 
 
 @app.get("/api/observability/recent")
-def recent_observability_events(limit: int = 50) -> list[dict]:
-    return telemetry_store.recent(limit)
+def recent_observability_events(limit: int = 50, service_id: str | None = None) -> list[dict]:
+    return telemetry_store.recent(limit, service_id)
+
+
+@app.get("/api/observability/daily")
+def daily_observability(service_id: str | None = None, days: int = 7) -> list[dict]:
+    return telemetry_store.daily(service_id, days)
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>AIOps Lens Observability Dashboard</title>
-    <link rel="stylesheet" href="/static/dashboard.css?v=telemetry-platform-1">
+    <link rel="stylesheet" href="/static/dashboard.css?v=governance-platform-6">
   </head>
   <body>
     <main class="dashboard-shell">
@@ -94,6 +94,16 @@
             <strong id="metricSlo">No data</strong>
             <small id="metricBudget">Error budget 100%</small>
           </article>
+          <article>
+            <span>Governance risk</span>
+            <strong id="metricRisk">0.00</strong>
+            <small id="metricRiskHint">Average prompt risk</small>
+          </article>
+          <article>
+            <span>Blocked</span>
+            <strong id="metricBlocked">0</strong>
+            <small>Stopped before model call</small>
+          </article>
         </section>
 
         <section class="dashboard-grid">
@@ -156,6 +166,21 @@
             <div id="alertList" class="alert-list"></div>
           </article>
 
+          <article class="panel governance-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="eyebrow">AI governance gateway</p>
+                <h3>Prompt safety signals</h3>
+              </div>
+            </div>
+            <div class="governance-grid">
+              <div><span>Prompt injection</span><strong id="metricInjection">0</strong></div>
+              <div><span>Secrets</span><strong id="metricSecrets">0</strong></div>
+              <div><span>PII</span><strong id="metricPii">0</strong></div>
+              <div><span>Policy action</span><strong id="metricPolicy">Allow</strong></div>
+            </div>
+          </article>
+
           <article class="panel evidence-panel">
             <div class="panel-heading">
               <div>
@@ -181,6 +206,6 @@
       </section>
     </main>
 
-    <script src="/static/dashboard.js?v=telemetry-platform-1"></script>
+    <script src="/static/dashboard.js?v=governance-platform-6"></script>
   </body>
 </html>

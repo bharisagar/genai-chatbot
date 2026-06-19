@@ -700,6 +700,25 @@ resource "aws_cloudwatch_metric_alarm" "chatbot_cost_spike" {
   tags = local.common_tags
 }
 
+resource "aws_cloudwatch_metric_alarm" "chatbot_governance_blocked" {
+  alarm_name          = "${var.name}-chatbot-governance-blocked"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "GovernanceBlockedCount"
+  namespace           = "AIOpsLens/Chatbot"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 0
+  alarm_description   = "One or more chatbot requests were blocked by the AI Governance Gateway."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    Application = var.name
+  }
+
+  tags = local.common_tags
+}
+
 resource "aws_cloudwatch_dashboard" "ecs" {
   dashboard_name = "${var.name}-ecs-fargate"
 
@@ -868,7 +887,11 @@ resource "aws_cloudwatch_dashboard" "ecs" {
           metrics = [
             ["AIOpsLens/Chatbot", "EstimatedCostUsd", "Application", var.name, { stat = "Sum" }],
             [".", "FallbackCount", ".", ".", { stat = "Sum" }],
-            [".", "LowConfidenceCount", ".", ".", { stat = "Sum" }]
+            [".", "LowConfidenceCount", ".", ".", { stat = "Sum" }],
+            [".", "GovernanceBlockedCount", ".", ".", { stat = "Sum" }],
+            [".", "PromptInjectionCount", ".", ".", { stat = "Sum" }],
+            [".", "PiiDetectionCount", ".", ".", { stat = "Sum" }],
+            [".", "SecretDetectionCount", ".", ".", { stat = "Sum" }]
           ]
         }
       },

@@ -8,8 +8,9 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.advisor import AdvisorEngine
+from app.governance import GovernanceDecision, GovernanceGateway
 from app.models import ChatRequest, ChatResponse, RuntimeStatus, ServicePackSummary
-from app.telemetry import telemetry_store
+from app.telemetry import estimate_tokens, telemetry_store
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -30,6 +31,7 @@ app.add_middleware(
 )
 
 advisor = AdvisorEngine()
+governance_gateway = GovernanceGateway()
 
 
 @app.get("/", include_in_schema=False)
@@ -69,8 +71,21 @@ def get_service_pack(service_id: str) -> dict:
 def chat(request: ChatRequest) -> ChatResponse:
     request_id = str(uuid4())
     start = perf_counter()
+    governance_decision = governance_gateway.evaluate(request.message)
+    if not governance_decision.allowed:
+        latency_ms = (perf_counter() - start) * 1000
+        response = blocked_response(request, governance_decision)
+        response.request_id = request_id
+        response.latency_ms = round(latency_ms, 2)
+        telemetry_store.record_success(request_id, request, response, latency_ms)
+        return response
+
+    safe_request = request
+    if governance_decision.sanitized_message != request.message:
+        safe_request = request.model_copy(update={"message": governance_decision.sanitized_message})
+
     try:
-        response = advisor.answer(request)
+        response = advisor.answer(safe_request)
     except Exception as error:
         latency_ms = (perf_counter() - start) * 1000
         telemetry_store.record_error(request_id, request, latency_ms, error)
@@ -79,8 +94,53 @@ def chat(request: ChatRequest) -> ChatResponse:
     latency_ms = (perf_counter() - start) * 1000
     response.request_id = request_id
     response.latency_ms = round(latency_ms, 2)
+    response.governance = governance_decision.to_dict()
     telemetry_store.record_success(request_id, request, response, latency_ms)
     return response
+
+
+def blocked_response(request: ChatRequest, decision: GovernanceDecision) -> ChatResponse:
+    answer = (
+        "Request blocked by the AI Governance Gateway.\n\n"
+        "The chatbot did not send this prompt to the advisor or model because it matched "
+        "one or more high-risk policy signals. Remove secrets, personal data, prompt-override "
+        "language, or destructive instructions and try again."
+    )
+    input_tokens = estimate_tokens(request.message)
+    output_tokens = estimate_tokens(answer)
+    return ChatResponse(
+        answer=answer,
+        service_id=request.service_id or "ai-governance",
+        service_name="AI Governance Gateway",
+        intent="security_policy",
+        response_source="governance_block",
+        confidence=1.0,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=input_tokens + output_tokens,
+        estimated_cost_usd=0.0,
+        explainability={
+            "selected_service_reason": "Governance evaluation runs before service-pack selection.",
+            "selected_intent_reason": "The request matched policy risk signals before normal intent routing.",
+            "action_taken": "Blocked the request before advisor execution and model invocation.",
+            "fallback_used": False,
+            "bedrock_error": None,
+            "approved_context": {
+                "dashboard_sections": ["AI Governance Gateway", "Security Policy Evidence"],
+                "alarm_count": 0,
+                "reference_count": 0,
+            },
+        },
+        governance=decision.to_dict(),
+        actions=[
+            "Do not send blocked prompt to Bedrock",
+            "Record governance finding",
+            "Review prompt policy evidence",
+        ],
+        dashboard_sections=["AI Governance Gateway", "Security Policy Evidence"],
+        alarms=["PromptInjectionDetected", "SensitiveDataDetected", "GovernanceBlockedRequest"],
+        references=[],
+    )
 
 
 @app.get("/api/observability/summary")

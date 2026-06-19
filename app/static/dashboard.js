@@ -14,6 +14,12 @@ const metricTokens = document.querySelector("#metricTokens");
 const metricCost = document.querySelector("#metricCost");
 const metricSlo = document.querySelector("#metricSlo");
 const metricBudget = document.querySelector("#metricBudget");
+const metricRisk = document.querySelector("#metricRisk");
+const metricBlocked = document.querySelector("#metricBlocked");
+const metricInjection = document.querySelector("#metricInjection");
+const metricSecrets = document.querySelector("#metricSecrets");
+const metricPii = document.querySelector("#metricPii");
+const metricPolicy = document.querySelector("#metricPolicy");
 const serviceBreakdown = document.querySelector("#serviceBreakdown");
 const intentBreakdown = document.querySelector("#intentBreakdown");
 const evidenceTable = document.querySelector("#evidenceTable");
@@ -117,6 +123,12 @@ function renderSummary(summary) {
   metricSlo.textContent = sloStatus.replace("_", " ");
   metricSlo.className = `slo-${sloStatus.replace("_", "-")}`;
   metricBudget.textContent = `Error budget ${formatPercent(summary.slo?.error_budget_remaining || 0)}`;
+  metricRisk.textContent = Number(summary.avg_governance_risk || 0).toFixed(2);
+  metricBlocked.textContent = formatNumber(summary.governance_blocked_count);
+  metricInjection.textContent = formatNumber(summary.prompt_injection_count);
+  metricSecrets.textContent = formatNumber(summary.secret_detection_count);
+  metricPii.textContent = formatNumber(summary.pii_detection_count);
+  metricPolicy.textContent = Number(summary.governance_blocked_count || 0) > 0 ? "Review" : "Allow";
   renderBreakdown(serviceBreakdown, summary.by_service, "No service data yet");
   renderBreakdown(intentBreakdown, summary.by_intent, "No intent data yet");
 }
@@ -175,10 +187,13 @@ function renderEvidence(events) {
       </div>
       <div>
         <span>Inspect</span>
-        <button class="inspect-button" type="button">Open</button>
+        <a class="inspect-button" href="#event-${event.request_id}" data-request-id="${event.request_id}">Open</a>
       </div>
     `;
-    row.addEventListener("click", () => inspectEvent(event.request_id));
+    row.addEventListener("click", () => {
+      window.location.hash = `event-${event.request_id}`;
+      inspectEvent(event.request_id);
+    });
     evidenceTable.appendChild(row);
   });
 }
@@ -199,10 +214,21 @@ function renderAlerts(alerts) {
 function renderEventDetail(event) {
   const context = event.explainability?.approved_context || {};
   const sections = context.dashboard_sections || [];
+  const governance = event.governance || {};
+  const findings = governance.findings || [];
+  const categories = governance.categories || [];
   eventDetail.innerHTML = `
     <div class="detail-block">
       <strong>${event.request_id}</strong>
       <p>${event.service_name} | ${event.intent} | ${event.response_source}</p>
+    </div>
+    <div class="detail-block">
+      <strong>Governance decision</strong>
+      <p>Action ${governance.policy_action || "allow"} | Severity ${governance.severity || "low"} | Risk ${governance.risk_score || 0}</p>
+      <p>Categories ${categories.length ? categories.join(", ") : "none"}</p>
+      <ul class="detail-list">
+        ${findings.map((finding) => `<li>${finding.signal}</li>`).join("")}
+      </ul>
     </div>
     <div class="detail-block">
       <strong>Decision path</strong>
@@ -231,6 +257,13 @@ async function inspectEvent(requestId) {
     return;
   }
   renderEventDetail(await response.json());
+}
+
+function inspectEventFromHash() {
+  if (!window.location.hash.startsWith("#event-")) {
+    return;
+  }
+  inspectEvent(window.location.hash.replace("#event-", ""));
 }
 
 function resizeCanvas() {
@@ -316,6 +349,7 @@ async function refreshDashboard() {
   drawDailyChart(await dailyResponse.json());
   renderEvidence(await recentResponse.json());
   renderAlerts(await alertsResponse.json());
+  inspectEventFromHash();
 }
 
 async function boot() {
@@ -326,6 +360,14 @@ async function boot() {
 
 serviceSelect.addEventListener("change", refreshDashboard);
 dayRangeSelect.addEventListener("change", refreshDashboard);
+evidenceTable.addEventListener("click", (clickEvent) => {
+  const inspectButton = clickEvent.target.closest(".inspect-button");
+  if (!inspectButton) {
+    return;
+  }
+  inspectEvent(inspectButton.dataset.requestId);
+});
+window.addEventListener("hashchange", inspectEventFromHash);
 window.addEventListener("resize", () => drawDailyChart(latestDaily));
 
 boot().catch(() => {

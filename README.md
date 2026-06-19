@@ -7,6 +7,7 @@ The app is intentionally simple on the surface:
 - A browser chat UI for cloud engineers and platform teams.
 - A FastAPI backend with approved service-pack content.
 - Optional Amazon Bedrock integration for natural-language polish.
+- AI Governance Gateway for prompt-injection, secrets, PII, and destructive-intent checks.
 - Docker packaging for ECS/Fargate.
 - Terraform starter infrastructure with ALB, ECS service, CloudWatch logs, dashboard, and alarms.
 - CloudWatch Embedded Metric Format telemetry for chatbot observability, explainability, token usage, and estimated cost.
@@ -15,12 +16,28 @@ The app is intentionally simple on the surface:
 
 ```text
 User -> Chat UI -> FastAPI -> Service Pack Catalog
+                \-> AI Governance Gateway
                          \-> Optional Amazon Bedrock
                          \-> EMF telemetry + explainability events
                          \-> CloudWatch-ready dashboard/alarm recommendations
 ```
 
 The core production principle is that the LLM advises from curated service packs. It should not freely invent dashboards, alarms, or security controls.
+
+## AI Governance Gateway
+
+Every chat request is evaluated before the advisor or Bedrock can process it. The gateway produces a policy decision, risk score, severity, categories, findings, and a sanitized prompt for safe routing.
+
+Current controls:
+
+- Prompt-injection and prompt-disclosure detection
+- Secret detection for AWS keys, GitHub tokens, private-key markers, API keys, passwords, and token phrases
+- PII detection for email addresses, phone-like values, and long account/card-like numbers
+- Destructive or unauthorized operational-intent detection
+- Block decisions for prompt-injection, secrets, and high-risk combinations
+- Review decisions for medium-risk prompts that can still be safely routed after redaction
+
+Blocked requests return a safe response from the application, are not sent to Bedrock, and are still captured as telemetry evidence.
 
 ## Chatbot Observability
 
@@ -37,6 +54,7 @@ Captured signals:
 - Explainability reasons for service selection and intent selection
 - Request id and message hash for evidence without storing raw prompts
 - Percentile latency, SLO status, error-budget remaining, and alert summaries
+- Governance risk score, blocked count, prompt-injection count, PII count, and secret count
 - Durable event history through local SQLite or DynamoDB in ECS/Fargate production
 
 The app also exposes telemetry APIs for the dashboard:
@@ -59,7 +77,7 @@ The observability APIs accept `service_id` so the dashboard can show only ECS, o
 
 Local development stores events in `app/data/telemetry_events.db`, which is ignored by Git. ECS/Fargate production uses a Terraform-managed DynamoDB table by default so dashboard history survives task restarts.
 
-Terraform adds CloudWatch dashboard widgets for chatbot request volume, errors, latency, token usage, estimated cost, requests by service, requests by intent, and explainability evidence. MCP can be added later as a natural-language query layer over CloudWatch Logs Insights, CloudWatch Metrics, and S3/Athena evidence; it should not replace the telemetry pipeline.
+Terraform adds CloudWatch dashboard widgets for chatbot request volume, errors, latency, token usage, estimated cost, requests by service, requests by intent, governance findings, and explainability evidence. MCP can be added later as a natural-language query layer over CloudWatch Logs Insights, CloudWatch Metrics, and S3/Athena evidence; it should not replace the telemetry pipeline.
 
 ## AWS Resource Observability
 
@@ -76,6 +94,7 @@ The deployed ECS/Fargate stack also captures the main AWS resources used to run 
 The dashboard intentionally separates these layers:
 
 - Agent layer: request volume, success rate, token usage, explainability, and response quality signals
+- Governance layer: policy action, prompt-injection attempts, sensitive-data detection, blocked requests, and risk score
 - Resource layer: ECS, ALB, NAT, VPC, logs, ECR, and optional Bedrock runtime signals
 
 ## Implemented Service Packs

@@ -58,6 +58,7 @@ class TelemetryStore:
                 "fallback_used": response.response_source == "service_pack"
                 and bool(response.bedrock_error),
                 "explainability": response.explainability,
+                "governance": response.governance,
                 "actions_count": len(response.actions),
                 "references_count": len(response.references),
             }
@@ -90,6 +91,14 @@ class TelemetryStore:
                     "action_taken": "Request failed before an advisor response was completed.",
                     "error": str(error),
                 },
+                "governance": {
+                    "allowed": False,
+                    "policy_action": "error",
+                    "severity": "critical",
+                    "risk_score": 0.0,
+                    "categories": ["runtime_error"],
+                    "findings": [],
+                },
                 "actions_count": 0,
                 "references_count": 0,
             }
@@ -114,6 +123,12 @@ class TelemetryStore:
         total_cost = sum(float(event.get("estimated_cost_usd", 0.0)) for event in events)
         fallback_count = sum(1 for event in events if event.get("fallback_used"))
         low_confidence_count = sum(1 for event in events if float(event.get("confidence", 0.0)) < 0.8)
+        governance_blocked_count = sum(1 for event in events if governance_action(event) == "block")
+        prompt_injection_count = sum(1 for event in events if has_governance_category(event, "prompt_injection"))
+        pii_detection_count = sum(1 for event in events if has_governance_category(event, "pii"))
+        secret_detection_count = sum(1 for event in events if has_governance_category(event, "secret"))
+        risk_scores = [float(event.get("governance", {}).get("risk_score", 0.0)) for event in events]
+        avg_governance_risk = round(sum(risk_scores) / len(risk_scores), 2) if risk_scores else 0.0
         latencies = [float(event.get("latency_ms", 0.0)) for event in events]
         avg_latency = round(sum(latencies) / len(latencies), 2) if latencies else 0.0
         p50_latency = percentile(latencies, 50)
@@ -145,6 +160,11 @@ class TelemetryStore:
             "estimated_cost_usd": round(total_cost, 8),
             "fallback_count": fallback_count,
             "low_confidence_count": low_confidence_count,
+            "governance_blocked_count": governance_blocked_count,
+            "prompt_injection_count": prompt_injection_count,
+            "pii_detection_count": pii_detection_count,
+            "secret_detection_count": secret_detection_count,
+            "avg_governance_risk": avg_governance_risk,
             "slo": {
                 "status": slo_status,
                 "success_target": SLO_SUCCESS_TARGET,
@@ -170,6 +190,10 @@ class TelemetryStore:
                 "total_tokens": 0,
                 "estimated_cost_usd": 0.0,
                 "avg_latency_ms": 0.0,
+                "governance_blocked_count": 0,
+                "prompt_injection_count": 0,
+                "pii_detection_count": 0,
+                "secret_detection_count": 0,
                 "_latencies": [],
             }
 
@@ -183,6 +207,10 @@ class TelemetryStore:
             bucket["error_count"] += 0 if event["success"] else 1
             bucket["total_tokens"] += int(event.get("total_tokens", 0))
             bucket["estimated_cost_usd"] += float(event.get("estimated_cost_usd", 0.0))
+            bucket["governance_blocked_count"] += 1 if governance_action(event) == "block" else 0
+            bucket["prompt_injection_count"] += 1 if has_governance_category(event, "prompt_injection") else 0
+            bucket["pii_detection_count"] += 1 if has_governance_category(event, "pii") else 0
+            bucket["secret_detection_count"] += 1 if has_governance_category(event, "secret") else 0
             bucket["_latencies"].append(float(event.get("latency_ms", 0.0)))
 
         results = []
@@ -235,6 +263,33 @@ class TelemetryStore:
                     "severity": "notice",
                     "title": "Low-confidence responses",
                     "detail": f"{summary['low_confidence_count']} responses were below the confidence threshold.",
+                }
+            )
+        if summary["governance_blocked_count"] > 0:
+            alerts.append(
+                {
+                    "severity": "critical",
+                    "title": "Governance blocked requests",
+                    "detail": f"{summary['governance_blocked_count']} requests were blocked before advisor or model execution.",
+                }
+            )
+        if summary["prompt_injection_count"] > 0:
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "title": "Prompt injection attempts",
+                    "detail": f"{summary['prompt_injection_count']} prompts matched instruction-override or prompt-disclosure signals.",
+                }
+            )
+        if summary["secret_detection_count"] > 0 or summary["pii_detection_count"] > 0:
+            alerts.append(
+                {
+                    "severity": "warning",
+                    "title": "Sensitive data detected",
+                    "detail": (
+                        f"{summary['secret_detection_count']} secret signals and "
+                        f"{summary['pii_detection_count']} PII signals were detected."
+                    ),
                 }
             )
         if not alerts:
@@ -393,6 +448,11 @@ class TelemetryStore:
         error_count = 0 if event["success"] else 1
         fallback_count = 1 if event.get("fallback_used") else 0
         low_confidence_count = 1 if float(event.get("confidence", 0.0)) < 0.8 else 0
+        governance = event.get("governance", {})
+        governance_blocked_count = 1 if governance.get("policy_action") == "block" else 0
+        prompt_injection_count = 1 if "prompt_injection" in governance.get("categories", []) else 0
+        pii_detection_count = 1 if "pii" in governance.get("categories", []) else 0
+        secret_detection_count = 1 if "secret" in governance.get("categories", []) else 0
 
         return {
             "_aws": {
@@ -417,6 +477,11 @@ class TelemetryStore:
                             {"Name": "EstimatedCostUsd", "Unit": "None"},
                             {"Name": "FallbackCount", "Unit": "Count"},
                             {"Name": "LowConfidenceCount", "Unit": "Count"},
+                            {"Name": "GovernanceBlockedCount", "Unit": "Count"},
+                            {"Name": "PromptInjectionCount", "Unit": "Count"},
+                            {"Name": "PiiDetectionCount", "Unit": "Count"},
+                            {"Name": "SecretDetectionCount", "Unit": "Count"},
+                            {"Name": "GovernanceRiskScore", "Unit": "None"},
                         ],
                     }
                 ],
@@ -438,11 +503,17 @@ class TelemetryStore:
             "EstimatedCostUsd": event["estimated_cost_usd"],
             "FallbackCount": fallback_count,
             "LowConfidenceCount": low_confidence_count,
+            "GovernanceBlockedCount": governance_blocked_count,
+            "PromptInjectionCount": prompt_injection_count,
+            "PiiDetectionCount": pii_detection_count,
+            "SecretDetectionCount": secret_detection_count,
+            "GovernanceRiskScore": governance.get("risk_score", 0.0),
             "Confidence": event["confidence"],
             "ErrorType": event["error_type"],
             "MessageHash": event["message_hash"],
             "MessageLength": event["message_length"],
             "Explainability": event["explainability"],
+            "Governance": governance,
         }
 
 
@@ -476,3 +547,18 @@ def slo_state(success_rate: float, latency_p95_ms: float) -> str:
     if success_rate < SLO_SUCCESS_TARGET or latency_p95_ms > SLO_LATENCY_P95_TARGET_MS:
         return "at_risk"
     return "healthy"
+
+
+def governance_action(event: dict[str, Any]) -> str:
+    governance = event.get("governance", {})
+    if not isinstance(governance, dict):
+        return "unknown"
+    return str(governance.get("policy_action", "allow"))
+
+
+def has_governance_category(event: dict[str, Any], category: str) -> bool:
+    governance = event.get("governance", {})
+    if not isinstance(governance, dict):
+        return False
+    categories = governance.get("categories", [])
+    return isinstance(categories, list) and category in categories

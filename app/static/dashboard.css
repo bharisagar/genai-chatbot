@@ -265,6 +265,7 @@ p {
 .split-panel,
 .resource-panel,
 .alert-panel,
+.governance-panel,
 .detail-panel {
   grid-column: span 4;
 }
@@ -335,19 +336,22 @@ p {
   background: linear-gradient(90deg, var(--blue), var(--cyan));
 }
 
-.coverage-grid {
+.coverage-grid,
+.governance-grid {
   display: grid;
   gap: 10px;
 }
 
-.coverage-grid div {
+.coverage-grid div,
+.governance-grid div {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 12px;
   background: var(--panel-soft);
 }
 
-.coverage-grid span {
+.coverage-grid span,
+.governance-grid span {
   display: block;
   color: var(--muted);
   font-size: 12px;
@@ -357,6 +361,17 @@ p {
 .coverage-grid strong {
   display: block;
   font-size: 14px;
+}
+
+.governance-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.governance-grid strong {
+  display: block;
+  font-size: 24px;
+  line-height: 1;
+  overflow-wrap: anywhere;
 }
 
 .evidence-table {
@@ -403,6 +418,7 @@ p {
 }
 
 .inspect-button {
+  display: inline-block;
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 10px;
@@ -410,6 +426,7 @@ p {
   color: var(--blue);
   cursor: pointer;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .alert-list,
@@ -491,6 +508,7 @@ p {
   .trend-panel,
   .split-panel,
   .resource-panel,
+  .governance-panel,
   .evidence-panel {
     grid-column: 1 / -1;
   }

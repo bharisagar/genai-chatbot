@@ -9,12 +9,22 @@ from app.telemetry import estimate_tokens
 
 
 DATA_DIR = Path(__file__).resolve().parent / "data" / "service_packs"
+DEFAULT_ACTIVE_SERVICE_IDS = {
+    "api-gateway",
+    "bedrock",
+    "ecs-fargate",
+    "lambda",
+    "load-balancer",
+    "s3",
+    "vpc",
+}
 
 
 class AdvisorEngine:
     def __init__(self, data_dir: Path = DATA_DIR) -> None:
         self.data_dir = data_dir
         self.packs = self._load_packs()
+        self.active_service_ids = self._active_service_ids()
         self.bedrock = BedrockAdvisor()
 
     def _load_packs(self) -> dict[str, dict[str, Any]]:
@@ -35,9 +45,12 @@ class AdvisorEngine:
                 aws_services=pack["aws_services"],
             )
             for pack in self.packs.values()
+            if pack["id"] in self.active_service_ids
         ]
 
     def get_pack(self, service_id: str) -> dict[str, Any] | None:
+        if service_id not in self.active_service_ids:
+            return None
         return self.packs.get(service_id)
 
     def runtime_status(self) -> RuntimeStatus:
@@ -103,7 +116,7 @@ class AdvisorEngine:
 
     def _resolve_service(self, request: ChatRequest) -> tuple[str, str]:
         if request.service_id:
-            if request.service_id in self.packs:
+            if request.service_id in self.active_service_ids and request.service_id in self.packs:
                 return request.service_id, f"User selected the {request.service_id} service pack."
             return (
                 "ecs-fargate",
@@ -121,6 +134,8 @@ class AdvisorEngine:
         best_score = 0
         best_matches: list[str] = []
         for pack_id, pack in self.packs.items():
+            if pack_id not in self.active_service_ids:
+                continue
             keywords = pack.get("keywords", [])
             matches = [keyword for keyword in keywords if keyword.lower() in normalized]
             score = sum(len(keyword) for keyword in matches)
@@ -203,6 +218,13 @@ class AdvisorEngine:
             if matches:
                 return intent, f"Matched intent keywords: {', '.join(matches[:5])}."
         return "monitoring_overview", "No specific intent keyword matched, so monitoring overview was used."
+
+    def _active_service_ids(self) -> set[str]:
+        configured = os.getenv("ACTIVE_SERVICE_PACK_IDS", "")
+        if not configured.strip():
+            return set(DEFAULT_ACTIVE_SERVICE_IDS)
+        requested = {service_id.strip() for service_id in configured.split(",") if service_id.strip()}
+        return requested & set(self.packs.keys())
 
     def _maybe_generate_with_bedrock(
         self, request: ChatRequest, pack: dict[str, Any], intent: str, deterministic_answer: str

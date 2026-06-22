@@ -24,7 +24,6 @@ def test_ecs_pack_is_loaded() -> None:
         "lambda",
         "load-balancer",
         "s3",
-        "sagemaker",
         "vpc",
     }.issubset(pack_ids)
 
@@ -118,7 +117,6 @@ def test_classifier_routes_common_service_questions() -> None:
         "ALB unhealthy targets": "load-balancer",
         "VPC flow logs rejects": "vpc",
         "Bedrock token usage": "bedrock",
-        "SageMaker model drift": "sagemaker",
     }
 
     for question, expected_service_id in cases.items():
@@ -210,3 +208,11 @@ def test_telemetry_store_calculates_slo_and_daily_windows() -> None:
         assert alerts
         assert event is not None
         assert event["service_id"] == "ecs-fargate"
+        assert len(summary["pillars"]) == 5
+        assert {pillar["id"] for pillar in summary["pillars"]} == {
+            "observability",
+            "explainability",
+            "quality",
+            "ethics_safety",
+            "continuous_validation",
+        }

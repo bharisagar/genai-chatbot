@@ -25,6 +25,7 @@ const intentBreakdown = document.querySelector("#intentBreakdown");
 const evidenceTable = document.querySelector("#evidenceTable");
 const alertList = document.querySelector("#alertList");
 const eventDetail = document.querySelector("#eventDetail");
+const pillarScorecard = document.querySelector("#pillarScorecard");
 const dailyChart = document.querySelector("#dailyChart");
 const chartContext = dailyChart.getContext("2d");
 
@@ -92,7 +93,7 @@ async function loadServicePacks() {
   if (!response.ok) {
     throw new Error("Service packs unavailable");
   }
-  servicePacks = await response.json();
+  servicePacks = (await response.json()).filter((pack) => pack.id !== "sagemaker");
   servicePacks.forEach((pack) => {
     const option = document.createElement("option");
     option.value = pack.id;
@@ -131,6 +132,7 @@ function renderSummary(summary) {
   metricPolicy.textContent = Number(summary.governance_blocked_count || 0) > 0 ? "Review" : "Allow";
   renderBreakdown(serviceBreakdown, summary.by_service, "No service data yet");
   renderBreakdown(intentBreakdown, summary.by_intent, "No intent data yet");
+  renderPillars(summary.pillars || []);
 }
 
 function renderBreakdown(container, values, emptyText) {
@@ -156,6 +158,49 @@ function renderBreakdown(container, values, emptyText) {
   });
 }
 
+function renderPillars(pillars) {
+  pillarScorecard.innerHTML = "";
+  if (!pillars.length) {
+    pillarScorecard.innerHTML = '<div class="empty-state">No pillar metrics captured for this window yet.</div>';
+    return;
+  }
+  pillars.forEach((pillar) => {
+    const card = document.createElement("article");
+    card.className = `pillar-card ${pillar.status}`;
+    const metrics = (pillar.metrics || []).slice(0, 9).map((metric) => `
+      <div class="pillar-metric">
+        <span>${metric.label}</span>
+        <strong>${formatMetricValue(metric)}</strong>
+      </div>
+    `).join("");
+    card.innerHTML = `
+      <div class="pillar-card-head">
+        <div>
+          <span class="pillar-label">${pillar.name}</span>
+          <p>${pillar.outcome}</p>
+        </div>
+        <strong>${Math.round(Number(pillar.score || 0))}</strong>
+      </div>
+      <div class="pillar-progress"><div style="width:${Math.max(4, Number(pillar.score || 0))}%"></div></div>
+      <div class="pillar-metrics">${metrics}</div>
+    `;
+    pillarScorecard.appendChild(card);
+  });
+}
+
+function formatMetricValue(metric) {
+  const value = Number(metric.value || 0);
+  if (metric.unit === "percent") {
+    return `${Math.round(value)}%`;
+  }
+  if (metric.unit === "ms") {
+    return `${value.toFixed(value >= 10 ? 0 : 2)} ms`;
+  }
+  if (metric.unit === "usd") {
+    return `$${value.toFixed(4)}`;
+  }
+  return formatNumber(value);
+}
 function renderEvidence(events) {
   evidenceTable.innerHTML = "";
   if (!events.length) {

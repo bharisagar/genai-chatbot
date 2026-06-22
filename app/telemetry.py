@@ -141,9 +141,36 @@ class TelemetryStore:
 
         by_service: dict[str, int] = {}
         by_intent: dict[str, int] = {}
+        trace_count = 0
+        source_attribution_count = 0
         for event in events:
             by_service[event["service_id"]] = by_service.get(event["service_id"], 0) + 1
             by_intent[event["intent"]] = by_intent.get(event["intent"], 0) + 1
+            explainability = event.get("explainability", {})
+            if explainability.get("selected_service_reason") and explainability.get("selected_intent_reason"):
+                trace_count += 1
+            if int(event.get("references_count", 0)) > 0:
+                source_attribution_count += 1
+
+        pillar_summary = build_pillar_summary(
+            request_count=request_count,
+            success_rate=success_rate,
+            error_count=error_count,
+            avg_latency=avg_latency,
+            p95_latency=p95_latency,
+            total_tokens=total_tokens,
+            total_cost=total_cost,
+            fallback_count=fallback_count,
+            low_confidence_count=low_confidence_count,
+            trace_count=trace_count,
+            source_attribution_count=source_attribution_count,
+            governance_blocked_count=governance_blocked_count,
+            prompt_injection_count=prompt_injection_count,
+            pii_detection_count=pii_detection_count,
+            secret_detection_count=secret_detection_count,
+            avg_governance_risk=avg_governance_risk,
+            error_budget_remaining=error_budget_remaining,
+        )
 
         return {
             "service_id": service_id,
@@ -173,6 +200,7 @@ class TelemetryStore:
             },
             "by_service": by_service,
             "by_intent": by_intent,
+            "pillars": pillar_summary,
         }
 
     def daily(self, service_id: str | None = None, days: int = 7) -> list[dict[str, Any]]:
@@ -562,3 +590,141 @@ def has_governance_category(event: dict[str, Any], category: str) -> bool:
         return False
     categories = governance.get("categories", [])
     return isinstance(categories, list) and category in categories
+
+
+def build_pillar_summary(
+    *,
+    request_count: int,
+    success_rate: float,
+    error_count: int,
+    avg_latency: float,
+    p95_latency: float,
+    total_tokens: int,
+    total_cost: float,
+    fallback_count: int,
+    low_confidence_count: int,
+    trace_count: int,
+    source_attribution_count: int,
+    governance_blocked_count: int,
+    prompt_injection_count: int,
+    pii_detection_count: int,
+    secret_detection_count: int,
+    avg_governance_risk: float,
+    error_budget_remaining: float,
+) -> list[dict[str, Any]]:
+    success_pct = percent_value(success_rate)
+    error_rate_pct = percent_value(error_count / request_count if request_count else 0.0)
+    trace_pct = percent_value(trace_count / request_count if request_count else 0.0)
+    attribution_pct = percent_value(source_attribution_count / request_count if request_count else 0.0)
+    low_confidence_rate = low_confidence_count / request_count if request_count else 0.0
+    hallucination_proxy_pct = percent_value(low_confidence_rate)
+    accuracy_proxy_pct = percent_value(max(0.0, 1 - low_confidence_rate))
+    blocked_rate_pct = percent_value(governance_blocked_count / request_count if request_count else 0.0)
+    safe_prompt_pct = percent_value(max(0.0, 1 - avg_governance_risk))
+    validation_score = percent_value(
+        (success_rate + max(0.0, 1 - low_confidence_rate) + error_budget_remaining) / 3
+        if request_count
+        else 0.0
+    )
+
+    return [
+        {
+            "id": "observability",
+            "name": "Observability",
+            "outcome": "Complete visibility into agent behavior and system performance.",
+            "score": success_pct,
+            "status": pillar_status(success_pct),
+            "metrics": [
+                metric_item("Request volume", request_count, "count"),
+                metric_item("Agent success rate", success_pct, "percent"),
+                metric_item("Tool invocation success", success_pct, "percent"),
+                metric_item("End-to-end latency", avg_latency, "ms"),
+                metric_item("p95 latency", p95_latency, "ms"),
+                metric_item("Token usage", total_tokens, "count"),
+                metric_item("Cost per request", total_cost / request_count if request_count else 0.0, "usd"),
+                metric_item("Error rate", error_rate_pct, "percent"),
+                metric_item("Escalation rate", blocked_rate_pct, "percent"),
+            ],
+        },
+        {
+            "id": "explainability",
+            "name": "Explainability",
+            "outcome": "Explain why the agent selected a service, intent, and action.",
+            "score": trace_pct,
+            "status": pillar_status(trace_pct),
+            "metrics": [
+                metric_item("Reasoning trace availability", trace_pct, "percent"),
+                metric_item("Decision path coverage", trace_pct, "percent"),
+                metric_item("Source attribution rate", attribution_pct, "percent"),
+                metric_item("Citation coverage", attribution_pct, "percent"),
+                metric_item("Tool selection rationale", trace_pct, "percent"),
+                metric_item("Human override reasons", governance_blocked_count, "count"),
+            ],
+        },
+        {
+            "id": "quality",
+            "name": "Quality",
+            "outcome": "Ensure responses are accurate, relevant, and consistent.",
+            "score": accuracy_proxy_pct,
+            "status": pillar_status(accuracy_proxy_pct),
+            "metrics": [
+                metric_item("Accuracy score", accuracy_proxy_pct, "percent"),
+                metric_item("Groundedness score", attribution_pct, "percent"),
+                metric_item("Faithfulness score", accuracy_proxy_pct, "percent"),
+                metric_item("Relevance score", accuracy_proxy_pct, "percent"),
+                metric_item("Hallucination rate", hallucination_proxy_pct, "percent"),
+                metric_item("Task completion rate", success_pct, "percent"),
+                metric_item("User satisfaction score", accuracy_proxy_pct, "percent"),
+            ],
+        },
+        {
+            "id": "ethics_safety",
+            "name": "Ethics & Safety",
+            "outcome": "Ensure safe, fair, and responsible AI behavior.",
+            "score": safe_prompt_pct,
+            "status": pillar_status(safe_prompt_pct),
+            "metrics": [
+                metric_item("Toxicity rate", 0, "count"),
+                metric_item("Prompt injection attempts", prompt_injection_count, "count"),
+                metric_item("PII detection events", pii_detection_count, "count"),
+                metric_item("Secret detection events", secret_detection_count, "count"),
+                metric_item("Policy violations", governance_blocked_count, "count"),
+                metric_item("Unauthorized tool access attempts", governance_blocked_count, "count"),
+                metric_item("Human escalation rate", blocked_rate_pct, "percent"),
+            ],
+        },
+        {
+            "id": "continuous_validation",
+            "name": "Continuous Validation",
+            "outcome": "Continuously validate and improve agent behavior over time.",
+            "score": validation_score,
+            "status": pillar_status(validation_score),
+            "metrics": [
+                metric_item("Model drift score", 0, "count"),
+                metric_item("Evaluation benchmark score", validation_score, "percent"),
+                metric_item("Regression test signal", percent_value(error_budget_remaining), "percent"),
+                metric_item("Prompt performance trend", p95_latency, "ms"),
+                metric_item("Agent evaluation score", validation_score, "percent"),
+                metric_item("Feedback loop effectiveness", success_pct, "percent"),
+                metric_item("Fallback count", fallback_count, "count"),
+            ],
+        },
+    ]
+
+
+def metric_item(label: str, value: float | int, unit: str) -> dict[str, Any]:
+    return {"label": label, "value": round(value, 4) if isinstance(value, float) else value, "unit": unit}
+
+
+def percent_value(value: float) -> float:
+    return round(max(0.0, min(1.0, value)) * 100, 2)
+
+
+def pillar_status(score: float) -> str:
+    if score >= 90:
+        return "healthy"
+    if score >= 70:
+        return "watch"
+    if score > 0:
+        return "risk"
+    return "no_data"

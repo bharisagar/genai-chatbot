@@ -546,3 +546,124 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+.pillar-board {
+  display: grid;
+  gap: 14px;
+}
+
+.mapping-badge {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: var(--muted);
+  background: var(--panel-soft);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.pillar-scorecard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pillar-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: var(--panel-soft);
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.pillar-card.healthy {
+  border-top: 4px solid var(--green);
+}
+
+.pillar-card.watch {
+  border-top: 4px solid var(--amber);
+}
+
+.pillar-card.risk {
+  border-top: 4px solid var(--red);
+}
+
+.pillar-card.no_data {
+  border-top: 4px solid var(--muted);
+}
+
+.pillar-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.pillar-card-head > strong {
+  font-size: 30px;
+  line-height: 1;
+}
+
+.pillar-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.pillar-card p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pillar-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: #e7edf5;
+  overflow: hidden;
+}
+
+.pillar-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--cyan));
+}
+
+.pillar-metrics {
+  display: grid;
+  gap: 7px;
+}
+
+.pillar-metric {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid #e6edf5;
+  padding-top: 7px;
+}
+
+.pillar-metric span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.pillar-metric strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (max-width: 1320px) {
+  .pillar-scorecard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .pillar-scorecard {
+    grid-template-columns: 1fr;
+  }
+}

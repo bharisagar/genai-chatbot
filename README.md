@@ -108,7 +108,6 @@ The chatbot now includes these approved service packs:
 - `load-balancer`
 - `vpc`
 - `bedrock`
-- `sagemaker`
 
 The first production deployment still runs on ECS/Fargate, but the advisor can answer across the services above.
 

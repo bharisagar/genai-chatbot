@@ -239,3 +239,7 @@ Add JSON files under `app/data/service_packs` for any additional organization st
 - Step Functions
 - EKS
 - CloudFront
+
+## Evidence
+
+Dashboard evidence screenshots are captured in [evidence/dashboard](evidence/dashboard/README.md).

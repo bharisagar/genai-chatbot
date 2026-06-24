@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title desc">
+  <title id="title">AWS AIOps Lens Chatbot Observability Architecture</title>
+  <desc id="desc">A 3D styled architecture diagram showing chatbot requests flowing through governance, advisor service packs, optional Bedrock, telemetry, storage, dashboard, and AWS production observability services.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eef6fb"/>
+      <stop offset="0.45" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#e7eef7"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2457d6"/>
+      <stop offset="1" stop-color="#0697b5"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f8b48"/>
+      <stop offset="1" stop-color="#0aa0b5"/>
+    </linearGradient>
+    <linearGradient id="orange" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b45309"/>
+      <stop offset="1" stop-color="#dc2626"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#18324a" flood-opacity="0.18"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2b4a66"/>
+    </marker>
+    <style>
+      .label { font: 700 25px Arial, sans-serif; fill: #09172f; }
+      .small { font: 500 18px Arial, sans-serif; fill: #536981; }
+      .tiny { font: 600 15px Arial, sans-serif; fill: #536981; }
+      .white { fill: #fff; }
+      .box { fill: #ffffff; stroke: #c9d8e8; stroke-width: 2; filter: url(#shadow); }
+      .side { fill: #d8e3ef; stroke: #bdccdc; stroke-width: 2; }
+      .top { fill: #f8fbff; stroke: #c9d8e8; stroke-width: 2; }
+      .flow { fill: none; stroke: #2b4a66; stroke-width: 4; marker-end: url(#arrow); }
+      .dash { fill: none; stroke: #6b7f95; stroke-width: 3; stroke-dasharray: 8 8; marker-end: url(#arrow); }
+      .chip { fill: #eef5fb; stroke: #d0deea; stroke-width: 1.5; }
+    </style>
+  </defs>
+  <rect width="1440" height="820" fill="url(#bg)"/>
+  <text x="70" y="70" class="label" font-size="34">AWS AIOps Lens Chatbot Observability</text>
+  <text x="70" y="105" class="small">Production telemetry flow for chatbot answers, governance evidence, Trusted AI pillars, and AWS resource monitoring</text>
+
+  <g transform="translate(70 165)">
+    <polygon class="top" points="20,0 245,0 270,24 45,24"/>
+    <rect class="box" x="20" y="24" width="250" height="132" rx="12"/>
+    <polygon class="side" points="270,24 300,44 300,176 270,156"/>
+    <rect x="44" y="50" width="56" height="56" rx="14" fill="url(#blue)"/>
+    <text x="118" y="70" class="label">Users</text>
+    <text x="118" y="98" class="small">Engineers ask:</text>
+    <text x="118" y="123" class="small">How do I monitor ECS?</text>
+  </g>
+
+  <path class="flow" d="M380 270 C430 270 440 270 485 270"/>
+
+  <g transform="translate(500 145)">
+    <polygon class="top" points="20,0 265,0 292,24 47,24"/>
+    <rect class="box" x="20" y="24" width="280" height="175" rx="12"/>
+    <polygon class="side" points="300,24 332,48 332,223 300,199"/>
+    <rect x="45" y="53" width="62" height="62" rx="16" fill="url(#green)"/>
+    <text x="126" y="70" class="label">FastAPI Chatbot</text>
+    <text x="126" y="99" class="small">Service-pack advisor</text>
+    <rect x="45" y="132" width="222" height="32" rx="16" class="chip"/>
+    <text x="61" y="154" class="tiny">ECS, VPC, S3, Lambda, ALB</text>
+  </g>
+
+  <path class="flow" d="M840 270 C890 270 905 270 950 270"/>
+
+  <g transform="translate(965 145)">
+    <polygon class="top" points="20,0 285,0 312,24 47,24"/>
+    <rect class="box" x="20" y="24" width="300" height="175" rx="12"/>
+    <polygon class="side" points="320,24 352,48 352,223 320,199"/>
+    <rect x="45" y="53" width="62" height="62" rx="16" fill="url(#orange)"/>
+    <text x="126" y="70" class="label">Governance Gateway</text>
+    <text x="126" y="99" class="small">Prompt injection, secrets, PII</text>
+    <text x="126" y="124" class="small">Block, review, or allow</text>
+    <rect x="45" y="140" width="238" height="32" rx="16" class="chip"/>
+    <text x="61" y="162" class="tiny">No raw prompt stored in evidence</text>
+  </g>
+
+  <path class="flow" d="M665 370 C665 425 665 430 665 475"/>
+  <path class="dash" d="M1115 370 C1115 420 1010 435 940 480"/>
+
+  <g transform="translate(420 490)">
+    <polygon class="top" points="20,0 430,0 460,26 50,26"/>
+    <rect class="box" x="20" y="26" width="455" height="180" rx="12"/>
+    <polygon class="side" points="475,26 510,52 510,232 475,206"/>
+    <text x="48" y="70" class="label">Structured Telemetry Event</text>
+    <text x="48" y="103" class="small">Request id, service, intent, latency</text>
+    <text x="48" y="130" class="small">Tokens, estimated cost, success/error</text>
+    <text x="48" y="157" class="small">Explainability trace and governance action</text>
+    <text x="48" y="184" class="small">Trusted AI pillar metrics</text>
+  </g>
+
+  <path class="flow" d="M945 585 C1005 585 1015 585 1070 585"/>
+
+  <g transform="translate(1090 488)">
+    <polygon class="top" points="20,0 235,0 265,25 50,25"/>
+    <rect class="box" x="20" y="25" width="260" height="182" rx="12"/>
+    <polygon class="side" points="280,25 310,50 310,232 280,207"/>
+    <text x="48" y="68" class="label">Evidence Stores</text>
+    <text x="48" y="101" class="small">Local SQLite</text>
+    <text x="48" y="128" class="small">DynamoDB on ECS</text>
+    <text x="48" y="155" class="small">CloudWatch EMF logs</text>
+    <text x="48" y="182" class="small">Dashboard APIs</text>
+  </g>
+
+  <path class="flow" d="M1220 475 C1220 410 1210 395 1210 345"/>
+
+  <g transform="translate(1010 55)">
+    <rect x="0" y="0" width="340" height="56" rx="28" fill="#0b172f" opacity="0.94"/>
+    <text x="26" y="36" class="white" font-family="Arial, sans-serif" font-size="22" font-weight="700">Dashboard: operators, audit, evidence</text>
+  </g>
+
+  <g transform="translate(75 520)">
+    <rect x="0" y="0" width="270" height="150" rx="16" fill="#0b172f" filter="url(#shadow)"/>
+    <text x="25" y="42" class="white" font-family="Arial, sans-serif" font-size="24" font-weight="700">Production AWS Layer</text>
+    <text x="25" y="75" fill="#cfdef0" font-family="Arial, sans-serif" font-size="18">ECS Fargate, ALB, VPC</text>
+    <text x="25" y="103" fill="#cfdef0" font-family="Arial, sans-serif" font-size="18">CloudWatch, ECR, Bedrock</text>
+    <text x="25" y="131" fill="#cfdef0" font-family="Arial, sans-serif" font-size="18">Alarms, logs, dashboard widgets</text>
+  </g>
+
+  <path class="dash" d="M345 595 C370 595 385 595 420 595"/>
+
+  <g transform="translate(70 735)">
+    <rect width="1300" height="42" rx="21" fill="#ffffff" opacity="0.85"/>
+    <text x="24" y="28" class="tiny">Purpose: convert every chatbot interaction into measurable observability, explainability, quality, safety, and continuous-validation evidence without storing full user prompts.</text>
+  </g>
+</svg>
